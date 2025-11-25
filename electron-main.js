@@ -30,19 +30,72 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-// --- AUTOMATION HANDLER ---
+// --- GLOBAL WORKER WINDOW TRACKING ---
+let currentWorkerWindow = null;
+let loginWindow = null;
+
+// --- AUTOMATION HANDLERS ---
+
+// Open login window to establish session
+ipcMain.handle('login-window-open', async (event, url) => {
+  console.log('Opening login window for:', url);
+
+  // Close existing login window if any
+  if (loginWindow && !loginWindow.isDestroyed()) {
+    loginWindow.close();
+  }
+
+  loginWindow = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    webPreferences: {
+      partition: 'persist:automation', // Use persistent session
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  });
+
+  loginWindow.webContents.openDevTools();
+  await loginWindow.loadURL(url);
+
+  // Return when window is closed
+  return new Promise((resolve) => {
+    loginWindow.on('closed', () => {
+      console.log('Login window closed. Session saved.');
+      loginWindow = null;
+      resolve({ success: true });
+    });
+  });
+});
+
+// Stop current automation
+ipcMain.handle('automation-stop', async () => {
+  console.log('Stopping automation...');
+  if (currentWorkerWindow && !currentWorkerWindow.isDestroyed()) {
+    currentWorkerWindow.close();
+    currentWorkerWindow = null;
+    return { success: true };
+  }
+  return { success: false, message: 'No active automation' };
+});
+
+// Run automation
 ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headless }) => {
   console.log('Running automation for:', url, 'Headless:', headless);
-  
-  // Tạo một cửa sổ worker
+
+  // Tạo một cửa sổ worker (sử dụng persistent session để giữ login)
   const workerWindow = new BrowserWindow({
     show: !headless, // Nếu headless = true thì show = false (ẩn)
     width: 1000,
     height: 800,
     webPreferences: {
+      partition: 'persist:automation', // Reuse same session as login window
       offscreen: false // Cần render để tương tác DOM
     }
   });
+
+  // Track current worker
+  currentWorkerWindow = workerWindow;
 
   // Forward console logs từ worker window
   workerWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
@@ -167,12 +220,18 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
     console.log('Automation result:', result);
 
     // Đóng cửa sổ sau khi xong
-    if (!workerWindow.isDestroyed()) workerWindow.close();
+    if (!workerWindow.isDestroyed()) {
+      workerWindow.close();
+    }
+    currentWorkerWindow = null;
     return result;
 
   } catch (err) {
     console.error('Automation error:', err);
-    if (!workerWindow.isDestroyed()) workerWindow.close();
+    if (!workerWindow.isDestroyed()) {
+      workerWindow.close();
+    }
+    currentWorkerWindow = null;
     return { error: err.message };
   }
 });
