@@ -189,13 +189,23 @@ ipcMain.handle('login-window-open', async (event, url) => {
 
 // Stop current automation
 ipcMain.handle('automation-stop', async () => {
-  console.log('Stopping automation...');
+  console.log('Force stopping automation...');
+
+  // Force destroy worker window immediately (don't wait for close)
   if (currentWorkerWindow && !currentWorkerWindow.isDestroyed()) {
-    currentWorkerWindow.close();
+    currentWorkerWindow.destroy(); // Use destroy() instead of close() for immediate shutdown
     currentWorkerWindow = null;
-    return { success: true };
+    console.log('Worker window destroyed');
   }
-  return { success: false, message: 'No active automation' };
+
+  // Force focus main window
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.focus();
+    mainWindow.show();
+    console.log('Main window focused');
+  }
+
+  return { success: true };
 });
 
 // Run automation
