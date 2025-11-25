@@ -406,16 +406,16 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
           // 4. Wait for Result - Increase initial wait time for AI generation to start
           await sleep(5000); // Wait longer for generation start
 
-          let waitAttempts = 0;
+          let outputWaitAttempts = 0;
           let lastText = "";
           let stableCount = 0;
 
           // Poll cho đến khi text không đổi (hoàn tất) hoặc timeout
-          while(waitAttempts < 60) { // Max 60s
+          while(outputWaitAttempts < 60) { // Max 60s
              await sleep(1000);
              const outEls = document.querySelectorAll(outputSel);
 
-             if(waitAttempts === 0) {
+             if(outputWaitAttempts === 0) {
                 console.log('Looking for output elements with selector:', outputSel);
                 console.log('Found', outEls.length, 'output elements');
              }
@@ -424,7 +424,7 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
                 const lastEl = outEls[outEls.length - 1];
                 const currentText = lastEl.innerText || lastEl.textContent || '';
 
-                if(waitAttempts % 5 === 0 && currentText.length > 0) {
+                if(outputWaitAttempts % 5 === 0 && currentText.length > 0) {
                    console.log('Output text length:', currentText.length, 'Preview:', currentText.substring(0, 100) + '...');
                 }
 
@@ -441,9 +441,9 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
                    return { success: true, text: currentText };
                 }
              }
-             waitAttempts++;
-             if(waitAttempts % 10 === 0) {
-                console.log('Still waiting for stable response... attempt:', waitAttempts);
+             outputWaitAttempts++;
+             if(outputWaitAttempts % 10 === 0) {
+                console.log('Still waiting for stable response... attempt:', outputWaitAttempts);
              }
           }
 
