@@ -644,15 +644,19 @@ const App: React.FC = () => {
                         Đăng nhập trước để tránh bị gián đoạn giữa chừng. Phiên đăng nhập sẽ được lưu tự động.
                       </p>
                       <button
-                        onClick={async () => {
+                        onClick={() => {
                           if (!window.electronAPI) return;
                           const url = config.steps[0]?.url || 'https://chatgpt.com/';
-                          try {
-                            await window.electronAPI.openLoginWindow(url);
-                            alert('Đã lưu phiên đăng nhập! Bạn có thể đóng cửa sổ đăng nhập.');
-                          } catch (err: any) {
-                            alert('Lỗi: ' + err.message);
-                          }
+
+                          // Open login window (non-blocking)
+                          window.electronAPI.openLoginWindow(url)
+                            .then(() => {
+                              console.log('Login window closed, session saved');
+                            })
+                            .catch((err: any) => {
+                              console.error('Login error:', err);
+                              alert('Lỗi mở cửa sổ đăng nhập: ' + err.message);
+                            });
                         }}
                         className="flex items-center space-x-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-md text-xs font-bold transition-colors shadow-sm"
                       >
