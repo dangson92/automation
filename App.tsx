@@ -7,19 +7,6 @@ import { StatusBadge } from './components/StatusBadge';
 // Fix for missing chrome types
 declare var chrome: any;
 
-// Electron API types
-interface ElectronAPI {
-  runAutomation: (data: any) => Promise<any>;
-  stopAutomation: () => Promise<any>;
-  openLoginWindow: (url: string) => Promise<any>;
-}
-
-declare global {
-  interface Window {
-    electronAPI?: ElectronAPI;
-  }
-}
-
 const DEFAULT_CONFIG: AppConfig = {
   systemInstruction: "Bạn là trợ lý AI hữu ích.",
   model: 'gemini-2.5-flash',
