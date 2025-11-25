@@ -85,6 +85,9 @@ const App: React.FC = () => {
   // Selected items for batch delete
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
 
+  // Track if we just deleted something to trigger focus
+  const [justDeleted, setJustDeleted] = useState(false);
+
   // --- Init ---
   useEffect(() => {
     if (isElectron()) {
@@ -98,6 +101,44 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('promptflow_agents', JSON.stringify(savedAgents));
   }, [savedAgents]);
+
+  // --- Auto-focus input after deletion ---
+  useEffect(() => {
+    if (justDeleted) {
+      // Multiple aggressive focus attempts
+      const focusInput = () => {
+        const textarea = inputTextareaRef.current;
+        if (textarea) {
+          // Remove any blocking attributes
+          textarea.removeAttribute('disabled');
+          textarea.removeAttribute('readonly');
+          textarea.style.pointerEvents = 'auto';
+          textarea.style.userSelect = 'auto';
+
+          // Clear and re-focus
+          textarea.blur();
+
+          requestAnimationFrame(() => {
+            textarea.focus();
+            textarea.click();
+
+            // Force cursor to end
+            const len = textarea.value.length;
+            textarea.setSelectionRange(len, len);
+          });
+        }
+      };
+
+      // Try multiple times with different delays
+      focusInput();
+      setTimeout(focusInput, 50);
+      setTimeout(focusInput, 150);
+      setTimeout(focusInput, 300);
+
+      // Reset flag
+      setJustDeleted(false);
+    }
+  }, [justDeleted]);
 
   // --- Helpers ---
   const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -141,23 +182,8 @@ const App: React.FC = () => {
       setSelectedItemId(null);
       setSelectedItemIds(new Set());
 
-      // Force focus back to input textarea with multiple attempts
-      const forceFocus = () => {
-        const textarea = inputTextareaRef.current;
-        if (textarea) {
-          textarea.blur(); // Clear any existing focus
-          textarea.removeAttribute('disabled');
-          textarea.style.pointerEvents = 'auto';
-          requestAnimationFrame(() => {
-            textarea.focus();
-            textarea.click(); // Ensure it's clickable
-          });
-        }
-      };
-
-      // Try focusing immediately and again after DOM updates
-      setTimeout(forceFocus, 0);
-      setTimeout(forceFocus, 150);
+      // Trigger focus via useEffect
+      setJustDeleted(true);
     }
   };
 
@@ -184,23 +210,8 @@ const App: React.FC = () => {
         setSelectedItemId(null);
       }
 
-      // Force focus back with multiple attempts
-      const forceFocus = () => {
-        const textarea = inputTextareaRef.current;
-        if (textarea) {
-          textarea.blur(); // Clear any existing focus
-          textarea.removeAttribute('disabled');
-          textarea.style.pointerEvents = 'auto';
-          requestAnimationFrame(() => {
-            textarea.focus();
-            textarea.click(); // Ensure it's clickable
-          });
-        }
-      };
-
-      // Try focusing immediately and again after DOM updates
-      setTimeout(forceFocus, 0);
-      setTimeout(forceFocus, 150);
+      // Trigger focus via useEffect
+      setJustDeleted(true);
     }
   };
 
