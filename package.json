@@ -4,8 +4,34 @@
   "main": "electron-main.js",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "start": "npm run build && electron ."
+    "build:web": "tsc && vite build",
+    "build": "npm run build:web && electron-builder",
+    "start": "npm run build:web && electron ."
+  },
+  "build": {
+    "appId": "com.promptflow.desktop",
+    "productName": "PromptFlow Desktop",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron-main.js",
+      "electron-preload.js",
+      "package.json"
+    ],
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "build/icon.ico"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Utility"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "category": "public.app-category.productivity"
+    }
   },
   "dependencies": {
     "@google/genai": "^1.30.0",
