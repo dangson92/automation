@@ -268,31 +268,94 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
 
           console.log('Input element found, typing text...');
 
-          // 2. Type Prompt
+          // 2. Type Prompt (React-compatible)
           inputEl.focus();
-          inputEl.value = textToType;
-          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
-          inputEl.dispatchEvent(new Event('change', { bubbles: true }));
-          await sleep(500);
+
+          // Method 1: Use execCommand for React compatibility
+          inputEl.value = '';
+          document.execCommand('insertText', false, textToType);
+
+          // Method 2: If execCommand doesn't work, set value and trigger proper events
+          if (inputEl.value !== textToType) {
+            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+              window.HTMLTextAreaElement.prototype,
+              'value'
+            )?.set || Object.getOwnPropertyDescriptor(
+              window.HTMLInputElement.prototype,
+              'value'
+            )?.set;
+
+            if (nativeInputValueSetter) {
+              nativeInputValueSetter.call(inputEl, textToType);
+            } else {
+              inputEl.value = textToType;
+            }
+
+            // Trigger React's onChange
+            const inputEvent = new Event('input', { bubbles: true });
+            const changeEvent = new Event('change', { bubbles: true });
+            inputEl.dispatchEvent(inputEvent);
+            inputEl.dispatchEvent(changeEvent);
+          }
+
+          console.log('Text value set to:', inputEl.value.substring(0, 50) + '...');
+          await sleep(1000);
 
           console.log('Text typed, submitting...');
 
-          // 3. Submit
+          // 3. Submit - Try multiple methods
+          let submitted = false;
           const btn = document.querySelector(submitSel);
-          if(btn) {
+          if(btn && !btn.disabled) {
              console.log('Submit button found, clicking...');
              btn.click();
-          } else {
-             console.log('Submit button not found, using Enter key...');
-             // Fallback Enter
-             const enter = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, keyCode: 13, key: 'Enter' });
-             inputEl.dispatchEvent(enter);
+             submitted = true;
+          }
+
+          if(!submitted) {
+             console.log('Submit button not found or disabled, using Enter key...');
+             // Try multiple Enter key methods
+             const enterKeydown = new KeyboardEvent('keydown', {
+               bubbles: true,
+               cancelable: true,
+               keyCode: 13,
+               which: 13,
+               key: 'Enter',
+               code: 'Enter'
+             });
+             const enterKeypress = new KeyboardEvent('keypress', {
+               bubbles: true,
+               cancelable: true,
+               keyCode: 13,
+               which: 13,
+               key: 'Enter',
+               code: 'Enter'
+             });
+             const enterKeyup = new KeyboardEvent('keyup', {
+               bubbles: true,
+               cancelable: true,
+               keyCode: 13,
+               which: 13,
+               key: 'Enter',
+               code: 'Enter'
+             });
+
+             inputEl.dispatchEvent(enterKeydown);
+             inputEl.dispatchEvent(enterKeypress);
+             inputEl.dispatchEvent(enterKeyup);
+
+             // Also try form submit if input is in a form
+             const form = inputEl.closest('form');
+             if (form) {
+               console.log('Found form, attempting form submit...');
+               form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+             }
           }
 
           console.log('Waiting for response...');
 
-          // 4. Wait for Result
-          await sleep(3000); // Wait for generation start
+          // 4. Wait for Result - Increase initial wait time for AI generation to start
+          await sleep(5000); // Wait longer for generation start
 
           let waitAttempts = 0;
           let lastText = "";
@@ -302,10 +365,21 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
           while(waitAttempts < 60) { // Max 60s
              await sleep(1000);
              const outEls = document.querySelectorAll(outputSel);
-             if(outEls.length > 0) {
-                const currentText = outEls[outEls.length - 1].innerText;
 
-                if(currentText.length > 0 && currentText === lastText) {
+             if(waitAttempts === 0) {
+                console.log('Looking for output elements with selector:', outputSel);
+                console.log('Found', outEls.length, 'output elements');
+             }
+
+             if(outEls.length > 0) {
+                const lastEl = outEls[outEls.length - 1];
+                const currentText = lastEl.innerText || lastEl.textContent || '';
+
+                if(waitAttempts % 5 === 0 && currentText.length > 0) {
+                   console.log('Output text length:', currentText.length, 'Preview:', currentText.substring(0, 100) + '...');
+                }
+
+                if(currentText.length > 10 && currentText === lastText) {
                    stableCount++;
                 } else {
                    stableCount = 0;
@@ -313,7 +387,7 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
                 lastText = currentText;
 
                 // Nếu text không đổi trong 3 giây -> coi như xong
-                if(stableCount >= 3) {
+                if(stableCount >= 3 && currentText.length > 10) {
                    console.log('Response stable, returning result...');
                    return { success: true, text: currentText };
                 }
