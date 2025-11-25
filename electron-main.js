@@ -198,17 +198,10 @@ ipcMain.handle('automation-stop', async () => {
     console.log('Worker window destroyed');
   }
 
-  // Wait a bit for cleanup, then force focus main window
-  await new Promise(resolve => setTimeout(resolve, 100));
-
+  // Focus main window without resizing
   if (mainWindow && !mainWindow.isDestroyed()) {
-    // Aggressive focus strategy
-    mainWindow.restore(); // Unminimize if minimized
-    mainWindow.show();    // Make visible
-    mainWindow.focus();   // Focus the window
-    mainWindow.moveTop(); // Bring to front
-    mainWindow.webContents.focus(); // Focus web contents
-    console.log('Main window focused and brought to front');
+    mainWindow.focus(); // Just focus, don't restore/resize
+    console.log('Main window focused');
   }
 
   return { success: true };
