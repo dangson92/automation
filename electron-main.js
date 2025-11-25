@@ -36,6 +36,120 @@ let loginWindow = null;
 
 // --- AUTOMATION HANDLERS ---
 
+// Visual Selector Picker
+ipcMain.handle('selector-picker-open', async (event, url) => {
+  console.log('Opening selector picker for:', url);
+
+  return new Promise((resolve) => {
+    const pickerWindow = new BrowserWindow({
+      width: 1400,
+      height: 900,
+      webPreferences: {
+        partition: 'persist:automation',
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+
+    pickerWindow.loadURL(url);
+
+    pickerWindow.webContents.on('did-finish-load', () => {
+      // Inject selector picker UI and logic
+      pickerWindow.webContents.executeJavaScript(`
+        (function() {
+          // Create overlay
+          const overlay = document.createElement('div');
+          overlay.id = 'selector-picker-overlay';
+          overlay.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 999999; pointer-events: none;';
+          document.body.appendChild(overlay);
+
+          // Create instruction banner
+          const banner = document.createElement('div');
+          banner.style.cssText = 'position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 16px 32px; border-radius: 12px; z-index: 10000000; font-family: system-ui; font-size: 16px; font-weight: 600; box-shadow: 0 10px 40px rgba(0,0,0,0.3); pointer-events: none;';
+          banner.textContent = '🎯 Click vào element để chọn CSS Selector';
+          document.body.appendChild(banner);
+
+          // Highlight box
+          const highlight = document.createElement('div');
+          highlight.style.cssText = 'position: absolute; pointer-events: none; border: 3px solid #667eea; background: rgba(102, 126, 234, 0.1); z-index: 9999999; transition: all 0.1s ease;';
+          document.body.appendChild(highlight);
+
+          let currentElement = null;
+
+          // Generate CSS selector for element
+          function getSelector(el) {
+            if (el.id) return '#' + el.id;
+            if (el.className) {
+              const classes = el.className.split(' ').filter(c => c.trim());
+              if (classes.length) return el.tagName.toLowerCase() + '.' + classes.join('.');
+            }
+            if (el.name) return el.tagName.toLowerCase() + '[name="' + el.name + '"]';
+
+            // Fallback: use data attributes or nth-child
+            let path = [];
+            while (el.parentElement) {
+              let selector = el.tagName.toLowerCase();
+              if (el.id) {
+                path.unshift('#' + el.id);
+                break;
+              }
+              const siblings = Array.from(el.parentElement.children);
+              const index = siblings.indexOf(el) + 1;
+              if (siblings.length > 1) {
+                selector += ':nth-child(' + index + ')';
+              }
+              path.unshift(selector);
+              el = el.parentElement;
+              if (path.length > 3) break;
+            }
+            return path.join(' > ');
+          }
+
+          // Mouse move handler
+          document.addEventListener('mousemove', (e) => {
+            if (e.target === overlay || e.target === banner || e.target === highlight) return;
+            currentElement = e.target;
+            const rect = currentElement.getBoundingClientRect();
+            highlight.style.top = (rect.top + window.scrollY) + 'px';
+            highlight.style.left = (rect.left + window.scrollX) + 'px';
+            highlight.style.width = rect.width + 'px';
+            highlight.style.height = rect.height + 'px';
+          }, true);
+
+          // Click handler
+          document.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (currentElement) {
+              const selector = getSelector(currentElement);
+              window.__selectorPickerResult = selector;
+              // Close window to trigger result
+              window.close();
+            }
+          }, true);
+
+          // ESC to cancel
+          document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+              window.__selectorPickerResult = null;
+              window.close();
+            }
+          });
+        })();
+      `);
+    });
+
+    pickerWindow.on('closed', async () => {
+      try {
+        const result = await pickerWindow.webContents.executeJavaScript('window.__selectorPickerResult');
+        resolve({ success: true, selector: result || null });
+      } catch (err) {
+        resolve({ success: true, selector: null });
+      }
+    });
+  });
+});
+
 // Open login window to establish session
 ipcMain.handle('login-window-open', async (event, url) => {
   console.log('Opening login window for:', url);
