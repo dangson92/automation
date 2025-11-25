@@ -55,7 +55,6 @@ ipcMain.handle('login-window-open', async (event, url) => {
     }
   });
 
-  loginWindow.webContents.openDevTools();
   await loginWindow.loadURL(url);
 
   // Return when window is closed
@@ -63,6 +62,12 @@ ipcMain.handle('login-window-open', async (event, url) => {
     loginWindow.on('closed', () => {
       console.log('Login window closed. Session saved.');
       loginWindow = null;
+
+      // Focus back to main window after login window closes
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.focus();
+      }
+
       resolve({ success: true });
     });
   });
@@ -102,10 +107,8 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
     console.log(`[Worker Console] ${message}`);
   });
 
-  // Mở DevTools nếu không headless
-  if (!headless) {
-    workerWindow.webContents.openDevTools();
-  }
+  // DevTools will NOT open automatically
+  // User can manually open with F12 if needed for debugging
 
   try {
     console.log('Loading URL:', url);
