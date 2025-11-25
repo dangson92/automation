@@ -69,6 +69,7 @@ const App: React.FC = () => {
   });
   const [agentNameInput, setAgentNameInput] = useState("");
   const [showSaveAgent, setShowSaveAgent] = useState(false);
+  const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(null); // Track currently loaded workflow
 
   // UI State
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
@@ -272,15 +273,33 @@ const App: React.FC = () => {
   };
 
   // --- Agent Management ---
-  const handleSaveAgent = () => {
+  const handleSaveAgent = (saveAsNew = false) => {
     if (!agentNameInput.trim()) return;
-    const newAgent: SavedAgent = {
-      id: generateId(),
-      name: agentNameInput,
-      config: { ...config },
-      automationConfig: { ...automationConfig }
-    };
-    setSavedAgents(prev => [...prev, newAgent]);
+
+    // If we have a current workflow ID and not explicitly saving as new, update it
+    if (currentWorkflowId && !saveAsNew) {
+      setSavedAgents(prev => prev.map(agent =>
+        agent.id === currentWorkflowId
+          ? {
+              ...agent,
+              name: agentNameInput,
+              config: { ...config },
+              automationConfig: { ...automationConfig }
+            }
+          : agent
+      ));
+    } else {
+      // Create new workflow
+      const newAgent: SavedAgent = {
+        id: generateId(),
+        name: agentNameInput,
+        config: { ...config },
+        automationConfig: { ...automationConfig }
+      };
+      setSavedAgents(prev => [...prev, newAgent]);
+      setCurrentWorkflowId(newAgent.id); // Set as current workflow
+    }
+
     setAgentNameInput("");
     setShowSaveAgent(false);
   };
@@ -291,13 +310,20 @@ const App: React.FC = () => {
       setConfig(agent.config);
       if (agent.automationConfig) setAutomationConfig(agent.automationConfig);
       if (agent.config.steps.length > 0) setExpandedStepId(agent.config.steps[0].id);
+      setCurrentWorkflowId(agentId); // Track which workflow is loaded
+      setAgentNameInput(agent.name); // Pre-fill the name for updates
     }
   };
 
   const handleDeleteAgent = (agentId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm("Xóa Agent này?")) {
+    if (confirm("Xóa workflow này?")) {
       setSavedAgents(prev => prev.filter(a => a.id !== agentId));
+      // If deleting the currently loaded workflow, clear the current workflow ID
+      if (currentWorkflowId === agentId) {
+        setCurrentWorkflowId(null);
+        setAgentNameInput("");
+      }
     }
   };
 
@@ -949,10 +975,35 @@ const App: React.FC = () => {
 
           {/* Save Agent */}
           <div className="pt-4 border-t border-slate-100">
+            {/* Show current workflow indicator */}
+            {currentWorkflowId && !showSaveAgent && (
+              <div className="mb-2 text-xs text-slate-500 flex items-center justify-between bg-indigo-50 p-2 rounded-lg border border-indigo-100">
+                <span className="flex items-center">
+                  <FileText className="w-3 h-3 mr-1 text-indigo-600" />
+                  <span className="font-semibold text-indigo-700">
+                    {savedAgents.find(a => a.id === currentWorkflowId)?.name || 'Workflow đang chỉnh sửa'}
+                  </span>
+                </span>
+                <button
+                  onClick={() => {
+                    setCurrentWorkflowId(null);
+                    setAgentNameInput("");
+                  }}
+                  className="text-indigo-400 hover:text-indigo-600 transition-colors"
+                  title="Tạo workflow mới"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+
             {!showSaveAgent ? (
-              <button onClick={() => setShowSaveAgent(true)} className="w-full flex items-center justify-center space-x-2 py-2 border border-dashed border-indigo-300 text-indigo-600 text-sm rounded-lg hover:bg-indigo-50 transition-colors">
+              <button
+                onClick={() => setShowSaveAgent(true)}
+                className="w-full flex items-center justify-center space-x-2 py-2 border border-dashed border-indigo-300 text-indigo-600 text-sm rounded-lg hover:bg-indigo-50 transition-colors"
+              >
                 <Save className="w-4 h-4" />
-                <span>Lưu Workflow Hiện Tại</span>
+                <span>{currentWorkflowId ? 'Cập nhật Workflow' : 'Lưu Workflow Mới'}</span>
               </button>
             ) : (
               <div className="flex flex-col space-y-2 animate-in fade-in zoom-in duration-200">
@@ -963,13 +1014,32 @@ const App: React.FC = () => {
                   className="w-full text-sm border-slate-300 rounded px-3 py-2 border focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   autoFocus
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSaveAgent();
+                    if (e.key === 'Enter') handleSaveAgent(false);
                     if (e.key === 'Escape') setShowSaveAgent(false);
                   }}
                 />
                 <div className="flex space-x-2">
-                  <button onClick={handleSaveAgent} className="flex-1 bg-indigo-600 text-white py-1.5 rounded text-sm hover:bg-indigo-700">Lưu</button>
-                  <button onClick={() => setShowSaveAgent(false)} className="px-3 bg-slate-100 text-slate-600 py-1.5 rounded text-sm hover:bg-slate-200">Hủy</button>
+                  <button
+                    onClick={() => handleSaveAgent(false)}
+                    className="flex-1 bg-indigo-600 text-white py-1.5 rounded text-sm hover:bg-indigo-700 font-semibold"
+                  >
+                    {currentWorkflowId ? 'Cập nhật' : 'Lưu mới'}
+                  </button>
+                  {currentWorkflowId && (
+                    <button
+                      onClick={() => handleSaveAgent(true)}
+                      className="flex-1 bg-green-600 text-white py-1.5 rounded text-sm hover:bg-green-700 font-semibold"
+                      title="Tạo bản sao mới"
+                    >
+                      Sao chép
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setShowSaveAgent(false)}
+                    className="px-3 bg-slate-100 text-slate-600 py-1.5 rounded text-sm hover:bg-slate-200"
+                  >
+                    Hủy
+                  </button>
                 </div>
               </div>
             )}
