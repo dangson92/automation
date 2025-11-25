@@ -66,6 +66,8 @@ declare global {
   interface Window {
     electronAPI?: {
       runAutomation: (data: { url: string; selectors: any; prompt: string; headless: boolean }) => Promise<{ success?: boolean; text?: string; error?: string }>;
+      stopAutomation: () => Promise<{ success?: boolean; message?: string }>;
+      openLoginWindow: (url: string) => Promise<{ success?: boolean }>;
     };
   }
 }
