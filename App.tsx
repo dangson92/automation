@@ -141,10 +141,23 @@ const App: React.FC = () => {
       setSelectedItemId(null);
       setSelectedItemIds(new Set());
 
-      // Force focus back to input textarea after a brief delay
-      setTimeout(() => {
-        inputTextareaRef.current?.focus();
-      }, 100);
+      // Force focus back to input textarea with multiple attempts
+      const forceFocus = () => {
+        const textarea = inputTextareaRef.current;
+        if (textarea) {
+          textarea.blur(); // Clear any existing focus
+          textarea.removeAttribute('disabled');
+          textarea.style.pointerEvents = 'auto';
+          requestAnimationFrame(() => {
+            textarea.focus();
+            textarea.click(); // Ensure it's clickable
+          });
+        }
+      };
+
+      // Try focusing immediately and again after DOM updates
+      setTimeout(forceFocus, 0);
+      setTimeout(forceFocus, 150);
     }
   };
 
@@ -171,10 +184,23 @@ const App: React.FC = () => {
         setSelectedItemId(null);
       }
 
-      // Force focus back
-      setTimeout(() => {
-        inputTextareaRef.current?.focus();
-      }, 100);
+      // Force focus back with multiple attempts
+      const forceFocus = () => {
+        const textarea = inputTextareaRef.current;
+        if (textarea) {
+          textarea.blur(); // Clear any existing focus
+          textarea.removeAttribute('disabled');
+          textarea.style.pointerEvents = 'auto';
+          requestAnimationFrame(() => {
+            textarea.focus();
+            textarea.click(); // Ensure it's clickable
+          });
+        }
+      };
+
+      // Try focusing immediately and again after DOM updates
+      setTimeout(forceFocus, 0);
+      setTimeout(forceFocus, 150);
     }
   };
 
