@@ -79,6 +79,10 @@ const App: React.FC = () => {
   // Refs
   const stopRef = useRef(false);
   const processingRef = useRef(false);
+  const inputTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Selected items for batch delete
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
 
   // --- Init ---
   useEffect(() => {
@@ -130,10 +134,66 @@ const App: React.FC = () => {
         }
       }
 
-      // Clear queue
+      // Clear queue and selections
       setQueue([]);
       setProgress(0);
       setSelectedItemId(null);
+      setSelectedItemIds(new Set());
+
+      // Force focus back to input textarea after a brief delay
+      setTimeout(() => {
+        inputTextareaRef.current?.focus();
+      }, 100);
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedItemIds.size === 0) return;
+    if (confirm(`Xóa ${selectedItemIds.size} item đã chọn?`)) {
+      // Stop automation if running
+      stopRef.current = true;
+      setIsProcessing(false);
+      processingRef.current = false;
+
+      if (mode === 'ELECTRON' && window.electronAPI) {
+        try {
+          await window.electronAPI.stopAutomation();
+        } catch (err) {
+          console.error('Failed to stop automation:', err);
+        }
+      }
+
+      // Remove selected items
+      setQueue(prev => prev.filter(item => !selectedItemIds.has(item.id)));
+      setSelectedItemIds(new Set());
+      if (selectedItemId && selectedItemIds.has(selectedItemId)) {
+        setSelectedItemId(null);
+      }
+
+      // Force focus back
+      setTimeout(() => {
+        inputTextareaRef.current?.focus();
+      }, 100);
+    }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedItemIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const handleToggleSelectAll = () => {
+    if (selectedItemIds.size === queue.length) {
+      setSelectedItemIds(new Set());
+    } else {
+      setSelectedItemIds(new Set(queue.map(item => item.id)));
     }
   };
 
@@ -907,6 +967,7 @@ const App: React.FC = () => {
               
               <div className="relative">
                 <textarea
+                  ref={inputTextareaRef}
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
                   placeholder="Nhập mỗi prompt một dòng..."
@@ -951,13 +1012,22 @@ const App: React.FC = () => {
                    </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                   <button onClick={handleExportCSV} disabled={queue.length === 0} className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-slate-300 rounded-md text-sm text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors">
+                   {selectedItemIds.size > 0 && (
+                      <span className="text-xs text-slate-500 mr-2">
+                        Đã chọn: <span className="font-bold text-indigo-600">{selectedItemIds.size}</span>
+                      </span>
+                   )}
+                   <button onClick={handleExportCSV} disabled={queue.length === 0} className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-slate-300 rounded-md text-sm text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors disabled:opacity-50">
                       <Download className="w-4 h-4" />
                       <span>Excel</span>
                    </button>
-                   <button onClick={handleClearQueue} disabled={queue.length === 0} className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-slate-300 rounded-md text-sm text-slate-600 hover:bg-red-50 hover:text-red-600 transition-colors">
+                   <button onClick={handleDeleteSelected} disabled={selectedItemIds.size === 0} className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-orange-300 rounded-md text-sm text-orange-600 hover:bg-orange-50 hover:text-orange-700 transition-colors disabled:opacity-50">
                       <Trash2 className="w-4 h-4" />
-                      <span>Xóa</span>
+                      <span>Xóa đã chọn</span>
+                   </button>
+                   <button onClick={handleClearQueue} disabled={queue.length === 0} className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-slate-300 rounded-md text-sm text-slate-600 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-50">
+                      <Trash2 className="w-4 h-4" />
+                      <span>Xóa tất cả</span>
                    </button>
                 </div>
              </div>
@@ -967,8 +1037,16 @@ const App: React.FC = () => {
                <table className="w-full text-left border-collapse">
                  <thead className="bg-slate-100 sticky top-0 z-10 shadow-sm">
                    <tr>
-                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-12 sticky left-0 bg-slate-100 z-20">#</th>
-                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-[140px] min-w-[140px] sticky left-12 bg-slate-100 z-20 whitespace-nowrap">Trạng thái</th>
+                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-10 sticky left-0 bg-slate-100 z-20">
+                       <input
+                         type="checkbox"
+                         checked={queue.length > 0 && selectedItemIds.size === queue.length}
+                         onChange={handleToggleSelectAll}
+                         className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                       />
+                     </th>
+                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-12 sticky left-10 bg-slate-100 z-20">#</th>
+                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-[140px] min-w-[140px] sticky left-[88px] bg-slate-100 z-20 whitespace-nowrap">Trạng thái</th>
                      <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 min-w-[200px] max-w-xs">Input Gốc</th>
                      {config.steps.map(step => (
                         <th key={step.id} className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 min-w-[250px]">
@@ -983,23 +1061,30 @@ const App: React.FC = () => {
                  <tbody className="bg-white divide-y divide-slate-100">
                     {queue.length === 0 && (
                       <tr>
-                        <td colSpan={4 + config.steps.length} className="p-10 text-center text-slate-400">
+                        <td colSpan={5 + config.steps.length} className="p-10 text-center text-slate-400">
                            <Layout className="w-12 h-12 mx-auto mb-3 opacity-20" />
                            <p>Danh sách trống.</p>
                         </td>
                       </tr>
                     )}
                     {queue.map((item, idx) => (
-                      <tr 
-                        key={item.id} 
-                        onClick={() => setSelectedItemId(item.id)}
-                        className={`hover:bg-indigo-50/50 cursor-pointer group transition-colors ${selectedItemId === item.id ? 'bg-indigo-50' : ''}`}
+                      <tr
+                        key={item.id}
+                        className={`hover:bg-indigo-50/50 group transition-colors ${selectedItemId === item.id ? 'bg-indigo-50' : ''}`}
                       >
-                        <td className="p-3 text-xs font-mono text-slate-400 sticky left-0 bg-inherit z-10">{idx + 1}</td>
-                        <td className="p-3 sticky left-12 bg-inherit z-10 whitespace-nowrap">
+                        <td className="p-3 sticky left-0 bg-inherit z-10" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedItemIds.has(item.id)}
+                            onChange={() => handleToggleSelect(item.id)}
+                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                          />
+                        </td>
+                        <td className="p-3 text-xs font-mono text-slate-400 sticky left-10 bg-inherit z-10 cursor-pointer" onClick={() => setSelectedItemId(item.id)}>{idx + 1}</td>
+                        <td className="p-3 sticky left-[88px] bg-inherit z-10 whitespace-nowrap cursor-pointer" onClick={() => setSelectedItemId(item.id)}>
                            <StatusBadge status={item.status} />
                         </td>
-                        <td className="p-3 text-sm text-slate-800 font-medium truncate max-w-xs align-top">
+                        <td className="p-3 text-sm text-slate-800 font-medium truncate max-w-xs align-top cursor-pointer" onClick={() => setSelectedItemId(item.id)}>
                            {item.originalPrompt}
                         </td>
                         
