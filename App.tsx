@@ -141,16 +141,18 @@ const App: React.FC = () => {
       setSelectedItemId(null);
       setSelectedItemIds(new Set());
 
-      // Focus textarea (window focus is handled by electron-main.js)
-      requestAnimationFrame(() => {
+      // Focus textarea after window is focused (window focus is handled by electron-main.js)
+      // Use longer delay to ensure window focus completes first
+      setTimeout(() => {
         const textarea = inputTextareaRef.current;
         if (textarea) {
           textarea.removeAttribute('disabled');
           textarea.removeAttribute('readonly');
           textarea.focus();
           textarea.click();
+          console.log('Textarea focused after delete');
         }
-      });
+      }, 200); // Wait for window focus to complete
     }
   };
 
@@ -178,16 +180,18 @@ const App: React.FC = () => {
         setSelectedItemId(null);
       }
 
-      // Focus textarea (window focus is handled by electron-main.js)
-      requestAnimationFrame(() => {
+      // Focus textarea after window is focused (window focus is handled by electron-main.js)
+      // Use longer delay to ensure window focus completes first
+      setTimeout(() => {
         const textarea = inputTextareaRef.current;
         if (textarea) {
           textarea.removeAttribute('disabled');
           textarea.removeAttribute('readonly');
           textarea.focus();
           textarea.click();
+          console.log('Textarea focused after delete');
         }
-      });
+      }, 200); // Wait for window focus to complete
     }
   };
 
