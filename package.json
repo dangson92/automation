@@ -4,9 +4,9 @@
   "main": "electron-main.js",
   "scripts": {
     "dev": "vite",
-    "build:web": "tsc && vite build",
-    "build": "npm run build:web && electron-builder",
-    "start": "npm run build:web && electron ."
+    "build": "tsc && vite build",
+    "build:exe": "npm run build && electron-builder",
+    "start": "npm run build && electron ."
   },
   "build": {
     "appId": "com.promptflow.desktop",

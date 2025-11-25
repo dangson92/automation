@@ -114,12 +114,21 @@ const App: React.FC = () => {
     setInputText("");
   };
 
-  const handleClearQueue = () => {
+  const handleClearQueue = async () => {
     if (confirm("Xóa toàn bộ danh sách kết quả?")) {
       // Stop any running process first
       stopRef.current = true;
       setIsProcessing(false);
       processingRef.current = false;
+
+      // Force stop automation if running in Electron
+      if (mode === 'ELECTRON' && window.electronAPI) {
+        try {
+          await window.electronAPI.stopAutomation();
+        } catch (err) {
+          console.error('Failed to stop automation:', err);
+        }
+      }
 
       // Clear queue
       setQueue([]);
@@ -178,6 +187,28 @@ const App: React.FC = () => {
         };
       })
     }));
+  };
+
+  const handlePickSelector = async (stepId: string, selectorField: 'input' | 'submit' | 'output') => {
+    if (!window.electronAPI) {
+      alert('Visual selector picker chỉ hoạt động trong Desktop App mode');
+      return;
+    }
+
+    const step = config.steps.find(s => s.id === stepId);
+    if (!step || !step.url) {
+      alert('Vui lòng nhập URL cho bước này trước');
+      return;
+    }
+
+    try {
+      const result = await window.electronAPI.pickSelector(step.url);
+      if (result.success && result.selector) {
+        handleUpdateStepSelector(stepId, selectorField, result.selector);
+      }
+    } catch (err: any) {
+      alert('Lỗi: ' + err.message);
+    }
   };
 
   // --- Agent Management ---
@@ -753,30 +784,60 @@ const App: React.FC = () => {
                                   <div className="space-y-2">
                                     <div className="flex items-center space-x-1">
                                       <span className="text-[10px] w-12 text-slate-400">Input</span>
-                                      <input 
+                                      <input
                                         value={step.selectors?.input || ''}
                                         onChange={(e) => handleUpdateStepSelector(step.id, 'input', e.target.value)}
                                         placeholder="#prompt-textarea"
                                         className="flex-1 text-xs bg-slate-50 border border-slate-200 rounded px-2 py-1 font-mono"
                                       />
+                                      {mode === 'ELECTRON' && (
+                                        <button
+                                          onClick={() => handlePickSelector(step.id, 'input')}
+                                          className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold transition-colors flex items-center space-x-1"
+                                          title="Click để chọn element trên trang"
+                                        >
+                                          <Target className="w-3 h-3" />
+                                          <span>Pick</span>
+                                        </button>
+                                      )}
                                     </div>
                                     <div className="flex items-center space-x-1">
                                       <span className="text-[10px] w-12 text-slate-400">Submit</span>
-                                      <input 
+                                      <input
                                         value={step.selectors?.submit || ''}
                                         onChange={(e) => handleUpdateStepSelector(step.id, 'submit', e.target.value)}
                                         placeholder="button[type='submit']"
                                         className="flex-1 text-xs bg-slate-50 border border-slate-200 rounded px-2 py-1 font-mono"
                                       />
+                                      {mode === 'ELECTRON' && (
+                                        <button
+                                          onClick={() => handlePickSelector(step.id, 'submit')}
+                                          className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold transition-colors flex items-center space-x-1"
+                                          title="Click để chọn element trên trang"
+                                        >
+                                          <Target className="w-3 h-3" />
+                                          <span>Pick</span>
+                                        </button>
+                                      )}
                                     </div>
                                     <div className="flex items-center space-x-1">
                                       <span className="text-[10px] w-12 text-slate-400">Output</span>
-                                      <input 
+                                      <input
                                         value={step.selectors?.output || ''}
                                         onChange={(e) => handleUpdateStepSelector(step.id, 'output', e.target.value)}
                                         placeholder=".markdown"
                                         className="flex-1 text-xs bg-slate-50 border border-slate-200 rounded px-2 py-1 font-mono"
                                       />
+                                      {mode === 'ELECTRON' && (
+                                        <button
+                                          onClick={() => handlePickSelector(step.id, 'output')}
+                                          className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-bold transition-colors flex items-center space-x-1"
+                                          title="Click để chọn element trên trang"
+                                        >
+                                          <Target className="w-3 h-3" />
+                                          <span>Pick</span>
+                                        </button>
+                                      )}
                                     </div>
                                   </div>
                                </div>

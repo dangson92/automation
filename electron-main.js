@@ -36,6 +36,120 @@ let loginWindow = null;
 
 // --- AUTOMATION HANDLERS ---
 
+// Visual Selector Picker
+ipcMain.handle('selector-picker-open', async (event, url) => {
+  console.log('Opening selector picker for:', url);
+
+  return new Promise((resolve) => {
+    const pickerWindow = new BrowserWindow({
+      width: 1400,
+      height: 900,
+      webPreferences: {
+        partition: 'persist:automation',
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+
+    pickerWindow.loadURL(url);
+
+    pickerWindow.webContents.on('did-finish-load', () => {
+      // Inject selector picker UI and logic
+      pickerWindow.webContents.executeJavaScript(`
+        (function() {
+          // Create overlay
+          const overlay = document.createElement('div');
+          overlay.id = 'selector-picker-overlay';
+          overlay.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 999999; pointer-events: none;';
+          document.body.appendChild(overlay);
+
+          // Create instruction banner
+          const banner = document.createElement('div');
+          banner.style.cssText = 'position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 16px 32px; border-radius: 12px; z-index: 10000000; font-family: system-ui; font-size: 16px; font-weight: 600; box-shadow: 0 10px 40px rgba(0,0,0,0.3); pointer-events: none;';
+          banner.textContent = '🎯 Click vào element để chọn CSS Selector';
+          document.body.appendChild(banner);
+
+          // Highlight box
+          const highlight = document.createElement('div');
+          highlight.style.cssText = 'position: absolute; pointer-events: none; border: 3px solid #667eea; background: rgba(102, 126, 234, 0.1); z-index: 9999999; transition: all 0.1s ease;';
+          document.body.appendChild(highlight);
+
+          let currentElement = null;
+
+          // Generate CSS selector for element
+          function getSelector(el) {
+            if (el.id) return '#' + el.id;
+            if (el.className) {
+              const classes = el.className.split(' ').filter(c => c.trim());
+              if (classes.length) return el.tagName.toLowerCase() + '.' + classes.join('.');
+            }
+            if (el.name) return el.tagName.toLowerCase() + '[name="' + el.name + '"]';
+
+            // Fallback: use data attributes or nth-child
+            let path = [];
+            while (el.parentElement) {
+              let selector = el.tagName.toLowerCase();
+              if (el.id) {
+                path.unshift('#' + el.id);
+                break;
+              }
+              const siblings = Array.from(el.parentElement.children);
+              const index = siblings.indexOf(el) + 1;
+              if (siblings.length > 1) {
+                selector += ':nth-child(' + index + ')';
+              }
+              path.unshift(selector);
+              el = el.parentElement;
+              if (path.length > 3) break;
+            }
+            return path.join(' > ');
+          }
+
+          // Mouse move handler
+          document.addEventListener('mousemove', (e) => {
+            if (e.target === overlay || e.target === banner || e.target === highlight) return;
+            currentElement = e.target;
+            const rect = currentElement.getBoundingClientRect();
+            highlight.style.top = (rect.top + window.scrollY) + 'px';
+            highlight.style.left = (rect.left + window.scrollX) + 'px';
+            highlight.style.width = rect.width + 'px';
+            highlight.style.height = rect.height + 'px';
+          }, true);
+
+          // Click handler
+          document.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (currentElement) {
+              const selector = getSelector(currentElement);
+              window.__selectorPickerResult = selector;
+              // Close window to trigger result
+              window.close();
+            }
+          }, true);
+
+          // ESC to cancel
+          document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+              window.__selectorPickerResult = null;
+              window.close();
+            }
+          });
+        })();
+      `);
+    });
+
+    pickerWindow.on('closed', async () => {
+      try {
+        const result = await pickerWindow.webContents.executeJavaScript('window.__selectorPickerResult');
+        resolve({ success: true, selector: result || null });
+      } catch (err) {
+        resolve({ success: true, selector: null });
+      }
+    });
+  });
+});
+
 // Open login window to establish session
 ipcMain.handle('login-window-open', async (event, url) => {
   console.log('Opening login window for:', url);
@@ -154,31 +268,94 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
 
           console.log('Input element found, typing text...');
 
-          // 2. Type Prompt
+          // 2. Type Prompt (React-compatible)
           inputEl.focus();
-          inputEl.value = textToType;
-          inputEl.dispatchEvent(new Event('input', { bubbles: true }));
-          inputEl.dispatchEvent(new Event('change', { bubbles: true }));
-          await sleep(500);
+
+          // Method 1: Use execCommand for React compatibility
+          inputEl.value = '';
+          document.execCommand('insertText', false, textToType);
+
+          // Method 2: If execCommand doesn't work, set value and trigger proper events
+          if (inputEl.value !== textToType) {
+            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+              window.HTMLTextAreaElement.prototype,
+              'value'
+            )?.set || Object.getOwnPropertyDescriptor(
+              window.HTMLInputElement.prototype,
+              'value'
+            )?.set;
+
+            if (nativeInputValueSetter) {
+              nativeInputValueSetter.call(inputEl, textToType);
+            } else {
+              inputEl.value = textToType;
+            }
+
+            // Trigger React's onChange
+            const inputEvent = new Event('input', { bubbles: true });
+            const changeEvent = new Event('change', { bubbles: true });
+            inputEl.dispatchEvent(inputEvent);
+            inputEl.dispatchEvent(changeEvent);
+          }
+
+          console.log('Text value set to:', inputEl.value.substring(0, 50) + '...');
+          await sleep(1000);
 
           console.log('Text typed, submitting...');
 
-          // 3. Submit
+          // 3. Submit - Try multiple methods
+          let submitted = false;
           const btn = document.querySelector(submitSel);
-          if(btn) {
+          if(btn && !btn.disabled) {
              console.log('Submit button found, clicking...');
              btn.click();
-          } else {
-             console.log('Submit button not found, using Enter key...');
-             // Fallback Enter
-             const enter = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, keyCode: 13, key: 'Enter' });
-             inputEl.dispatchEvent(enter);
+             submitted = true;
+          }
+
+          if(!submitted) {
+             console.log('Submit button not found or disabled, using Enter key...');
+             // Try multiple Enter key methods
+             const enterKeydown = new KeyboardEvent('keydown', {
+               bubbles: true,
+               cancelable: true,
+               keyCode: 13,
+               which: 13,
+               key: 'Enter',
+               code: 'Enter'
+             });
+             const enterKeypress = new KeyboardEvent('keypress', {
+               bubbles: true,
+               cancelable: true,
+               keyCode: 13,
+               which: 13,
+               key: 'Enter',
+               code: 'Enter'
+             });
+             const enterKeyup = new KeyboardEvent('keyup', {
+               bubbles: true,
+               cancelable: true,
+               keyCode: 13,
+               which: 13,
+               key: 'Enter',
+               code: 'Enter'
+             });
+
+             inputEl.dispatchEvent(enterKeydown);
+             inputEl.dispatchEvent(enterKeypress);
+             inputEl.dispatchEvent(enterKeyup);
+
+             // Also try form submit if input is in a form
+             const form = inputEl.closest('form');
+             if (form) {
+               console.log('Found form, attempting form submit...');
+               form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+             }
           }
 
           console.log('Waiting for response...');
 
-          // 4. Wait for Result
-          await sleep(3000); // Wait for generation start
+          // 4. Wait for Result - Increase initial wait time for AI generation to start
+          await sleep(5000); // Wait longer for generation start
 
           let waitAttempts = 0;
           let lastText = "";
@@ -188,10 +365,21 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
           while(waitAttempts < 60) { // Max 60s
              await sleep(1000);
              const outEls = document.querySelectorAll(outputSel);
-             if(outEls.length > 0) {
-                const currentText = outEls[outEls.length - 1].innerText;
 
-                if(currentText.length > 0 && currentText === lastText) {
+             if(waitAttempts === 0) {
+                console.log('Looking for output elements with selector:', outputSel);
+                console.log('Found', outEls.length, 'output elements');
+             }
+
+             if(outEls.length > 0) {
+                const lastEl = outEls[outEls.length - 1];
+                const currentText = lastEl.innerText || lastEl.textContent || '';
+
+                if(waitAttempts % 5 === 0 && currentText.length > 0) {
+                   console.log('Output text length:', currentText.length, 'Preview:', currentText.substring(0, 100) + '...');
+                }
+
+                if(currentText.length > 10 && currentText === lastText) {
                    stableCount++;
                 } else {
                    stableCount = 0;
@@ -199,7 +387,7 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
                 lastText = currentText;
 
                 // Nếu text không đổi trong 3 giây -> coi như xong
-                if(stableCount >= 3) {
+                if(stableCount >= 3 && currentText.length > 10) {
                    console.log('Response stable, returning result...');
                    return { success: true, text: currentText };
                 }
