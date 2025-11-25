@@ -141,11 +141,8 @@ const App: React.FC = () => {
       setSelectedItemId(null);
       setSelectedItemIds(new Set());
 
-      // Force focus on window and input
+      // Focus textarea (window focus is handled by electron-main.js)
       requestAnimationFrame(() => {
-        window.focus(); // Focus window first
-        document.body.focus();
-
         const textarea = inputTextareaRef.current;
         if (textarea) {
           textarea.removeAttribute('disabled');
@@ -181,11 +178,8 @@ const App: React.FC = () => {
         setSelectedItemId(null);
       }
 
-      // Force focus on window and input
+      // Focus textarea (window focus is handled by electron-main.js)
       requestAnimationFrame(() => {
-        window.focus(); // Focus window first
-        document.body.focus();
-
         const textarea = inputTextareaRef.current;
         if (textarea) {
           textarea.removeAttribute('disabled');
