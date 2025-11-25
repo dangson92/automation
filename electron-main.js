@@ -270,35 +270,59 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
 
           // 2. Type Prompt (React-compatible)
           inputEl.focus();
+          await sleep(300);
 
-          // Method 1: Use execCommand for React compatibility
+          // Clear existing value first
           inputEl.value = '';
-          document.execCommand('insertText', false, textToType);
 
-          // Method 2: If execCommand doesn't work, set value and trigger proper events
-          if (inputEl.value !== textToType) {
-            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-              window.HTMLTextAreaElement.prototype,
-              'value'
-            )?.set || Object.getOwnPropertyDescriptor(
-              window.HTMLInputElement.prototype,
-              'value'
-            )?.set;
+          // Method 1: Try execCommand (works best with React)
+          let success = false;
+          try {
+            success = document.execCommand('insertText', false, textToType);
+            console.log('execCommand result:', success);
+          } catch (e) {
+            console.log('execCommand failed:', e.message);
+          }
 
-            if (nativeInputValueSetter) {
-              nativeInputValueSetter.call(inputEl, textToType);
-            } else {
+          // Method 2: If execCommand failed, use native setter
+          if (!success || inputEl.value !== textToType) {
+            console.log('Trying native setter method...');
+            try {
+              // Get the native setter for the element type
+              const descriptor = Object.getOwnPropertyDescriptor(
+                inputEl.constructor.prototype,
+                'value'
+              );
+
+              if (descriptor && descriptor.set) {
+                descriptor.set.call(inputEl, textToType);
+                console.log('Native setter used successfully');
+              } else {
+                // Fallback to direct assignment
+                inputEl.value = textToType;
+                console.log('Direct value assignment used');
+              }
+
+              // Trigger React events
+              const inputEvent = new InputEvent('input', {
+                bubbles: true,
+                cancelable: true,
+                inputType: 'insertText',
+                data: textToType
+              });
+              const changeEvent = new Event('change', { bubbles: true });
+
+              inputEl.dispatchEvent(inputEvent);
+              inputEl.dispatchEvent(changeEvent);
+            } catch (e) {
+              console.error('All input methods failed:', e.message);
+              // Last resort: just set value directly
               inputEl.value = textToType;
             }
-
-            // Trigger React's onChange
-            const inputEvent = new Event('input', { bubbles: true });
-            const changeEvent = new Event('change', { bubbles: true });
-            inputEl.dispatchEvent(inputEvent);
-            inputEl.dispatchEvent(changeEvent);
           }
 
           console.log('Text value set to:', inputEl.value.substring(0, 50) + '...');
+          console.log('Input element value length:', inputEl.value.length);
           await sleep(1000);
 
           console.log('Text typed, submitting...');
