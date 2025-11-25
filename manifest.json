@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "PromptFlow Automation",
+  "version": "1.1",
+  "description": "Tự động hóa gửi prompt và lấy kết quả từ website bất kỳ mà không cần server.",
+  "permissions": [
+    "sidePanel",
+    "storage",
+    "scripting",
+    "activeTab",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "side_panel": {
+    "default_path": "index.html"
+  },
+  "action": {
+    "default_title": "Mở PromptFlow"
+  },
+  "background": {
+    "service_worker": "background.js" 
+  },
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  }
+}
