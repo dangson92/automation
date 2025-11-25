@@ -461,6 +461,9 @@ const App: React.FC = () => {
           let promptToSend = step.template.replace('{{input}}', currentItem.originalPrompt);
           promptToSend = promptToSend.replace('{{prev}}', previousResult);
 
+          // Log the actual prompt being sent
+          appendLog(id, `Prompt gửi đi: ${promptToSend.substring(0, 100)}${promptToSend.length > 100 ? '...' : ''}`);
+
           let stepResponse = "";
 
           if (mode === 'ELECTRON') {
