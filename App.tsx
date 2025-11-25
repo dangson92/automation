@@ -119,79 +119,54 @@ const App: React.FC = () => {
     setInputText("");
   };
 
-  const handleClearQueue = async () => {
-    if (confirm("Xóa toàn bộ danh sách kết quả?")) {
-      // Force stop immediately and wait for it
-      stopRef.current = true;
-      setIsProcessing(false);
-      processingRef.current = false;
+  const handleClearQueue = () => {
+    // Stop automation (fire-and-forget, don't wait)
+    stopRef.current = true;
+    setIsProcessing(false);
+    processingRef.current = false;
 
-      // Force stop automation synchronously
-      if (mode === 'ELECTRON' && window.electronAPI) {
-        try {
-          await window.electronAPI.stopAutomation();
-        } catch (err) {
-          console.error('Failed to stop automation:', err);
-        }
-      }
+    if (mode === 'ELECTRON' && window.electronAPI) {
+      window.electronAPI.stopAutomation().catch(err => {
+        console.error('Failed to stop automation:', err);
+      });
+    }
 
-      // Clear queue and selections
-      setQueue([]);
-      setProgress(0);
-      setSelectedItemId(null);
-      setSelectedItemIds(new Set());
+    // Clear queue and selections immediately (no confirm dialog)
+    setQueue([]);
+    setProgress(0);
+    setSelectedItemId(null);
+    setSelectedItemIds(new Set());
 
-      // Focus textarea after window is focused (window focus is handled by electron-main.js)
-      // Use longer delay to ensure window focus completes first
-      setTimeout(() => {
-        const textarea = inputTextareaRef.current;
-        if (textarea) {
-          textarea.removeAttribute('disabled');
-          textarea.removeAttribute('readonly');
-          textarea.focus();
-          textarea.click();
-          console.log('Textarea focused after delete');
-        }
-      }, 200); // Wait for window focus to complete
+    // Focus textarea immediately - no delay needed without confirm dialog
+    if (inputTextareaRef.current) {
+      inputTextareaRef.current.focus();
     }
   };
 
-  const handleDeleteSelected = async () => {
+  const handleDeleteSelected = () => {
     if (selectedItemIds.size === 0) return;
-    if (confirm(`Xóa ${selectedItemIds.size} item đã chọn?`)) {
-      // Force stop immediately and wait for it
-      stopRef.current = true;
-      setIsProcessing(false);
-      processingRef.current = false;
 
-      // Force stop automation synchronously
-      if (mode === 'ELECTRON' && window.electronAPI) {
-        try {
-          await window.electronAPI.stopAutomation();
-        } catch (err) {
-          console.error('Failed to stop automation:', err);
-        }
-      }
+    // Stop automation (fire-and-forget, don't wait)
+    stopRef.current = true;
+    setIsProcessing(false);
+    processingRef.current = false;
 
-      // Remove selected items
-      setQueue(prev => prev.filter(item => !selectedItemIds.has(item.id)));
-      setSelectedItemIds(new Set());
-      if (selectedItemId && selectedItemIds.has(selectedItemId)) {
-        setSelectedItemId(null);
-      }
+    if (mode === 'ELECTRON' && window.electronAPI) {
+      window.electronAPI.stopAutomation().catch(err => {
+        console.error('Failed to stop automation:', err);
+      });
+    }
 
-      // Focus textarea after window is focused (window focus is handled by electron-main.js)
-      // Use longer delay to ensure window focus completes first
-      setTimeout(() => {
-        const textarea = inputTextareaRef.current;
-        if (textarea) {
-          textarea.removeAttribute('disabled');
-          textarea.removeAttribute('readonly');
-          textarea.focus();
-          textarea.click();
-          console.log('Textarea focused after delete');
-        }
-      }, 200); // Wait for window focus to complete
+    // Remove selected items immediately (no confirm dialog)
+    setQueue(prev => prev.filter(item => !selectedItemIds.has(item.id)));
+    setSelectedItemIds(new Set());
+    if (selectedItemId && selectedItemIds.has(selectedItemId)) {
+      setSelectedItemId(null);
+    }
+
+    // Focus textarea immediately - no delay needed without confirm dialog
+    if (inputTextareaRef.current) {
+      inputTextareaRef.current.focus();
     }
   };
 
