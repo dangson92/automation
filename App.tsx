@@ -85,9 +85,6 @@ const App: React.FC = () => {
   // Selected items for batch delete
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
 
-  // Track if we just deleted something to trigger focus
-  const [justDeleted, setJustDeleted] = useState(false);
-
   // --- Init ---
   useEffect(() => {
     if (isElectron()) {
@@ -101,44 +98,6 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('promptflow_agents', JSON.stringify(savedAgents));
   }, [savedAgents]);
-
-  // --- Auto-focus input after deletion ---
-  useEffect(() => {
-    if (justDeleted) {
-      // Multiple aggressive focus attempts
-      const focusInput = () => {
-        const textarea = inputTextareaRef.current;
-        if (textarea) {
-          // Remove any blocking attributes
-          textarea.removeAttribute('disabled');
-          textarea.removeAttribute('readonly');
-          textarea.style.pointerEvents = 'auto';
-          textarea.style.userSelect = 'auto';
-
-          // Clear and re-focus
-          textarea.blur();
-
-          requestAnimationFrame(() => {
-            textarea.focus();
-            textarea.click();
-
-            // Force cursor to end
-            const len = textarea.value.length;
-            textarea.setSelectionRange(len, len);
-          });
-        }
-      };
-
-      // Try multiple times with different delays
-      focusInput();
-      setTimeout(focusInput, 50);
-      setTimeout(focusInput, 150);
-      setTimeout(focusInput, 300);
-
-      // Reset flag
-      setJustDeleted(false);
-    }
-  }, [justDeleted]);
 
   // --- Helpers ---
   const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -182,8 +141,11 @@ const App: React.FC = () => {
       setSelectedItemId(null);
       setSelectedItemIds(new Set());
 
-      // Trigger focus via useEffect
-      setJustDeleted(true);
+      // Simple direct focus after a small delay
+      setTimeout(() => {
+        inputTextareaRef.current?.click();
+        inputTextareaRef.current?.focus();
+      }, 100);
     }
   };
 
@@ -210,8 +172,11 @@ const App: React.FC = () => {
         setSelectedItemId(null);
       }
 
-      // Trigger focus via useEffect
-      setJustDeleted(true);
+      // Simple direct focus after a small delay
+      setTimeout(() => {
+        inputTextareaRef.current?.click();
+        inputTextareaRef.current?.focus();
+      }, 100);
     }
   };
 
@@ -1118,8 +1083,16 @@ const App: React.FC = () => {
                   ref={inputTextareaRef}
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
+                  onClick={(e) => {
+                    // Ensure textarea is always clickable and focusable
+                    const target = e.currentTarget;
+                    target.removeAttribute('disabled');
+                    target.removeAttribute('readonly');
+                    target.focus();
+                  }}
                   placeholder="Nhập mỗi prompt một dòng..."
                   className="w-full h-24 border border-slate-300 rounded-xl p-4 text-sm font-mono focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm resize-y"
+                  style={{ pointerEvents: 'auto', userSelect: 'auto' }}
                 />
                 <button
                   onClick={handleAddPrompts}
