@@ -332,9 +332,25 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
 
           console.log('Text value set to:', inputEl.value.substring(0, 50) + '...');
           console.log('Input element value length:', inputEl.value.length);
-          await sleep(1000);
 
-          console.log('Text typed, submitting...');
+          // Wait for React to process and enable submit button (longer delay for long prompts)
+          console.log('Waiting for submit button to be enabled...');
+          await sleep(2000); // Increased from 1000ms to 2000ms
+
+          // Verify submit button is enabled before clicking
+          let waitAttempts = 0;
+          while (waitAttempts < 10) {
+            const submitBtn = document.querySelector(submitSel);
+            if (submitBtn && !submitBtn.disabled) {
+              console.log('Submit button is ready');
+              break;
+            }
+            console.log('Waiting for submit button to be enabled, attempt:', waitAttempts + 1);
+            await sleep(500);
+            waitAttempts++;
+          }
+
+          console.log('Text typed and verified, submitting...');
 
           // 3. Submit - Try multiple methods
           let submitted = false;
