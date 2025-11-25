@@ -512,7 +512,7 @@ const App: React.FC = () => {
                       <div className="space-y-6">
                          <div>
                             <h3 className="text-lg font-bold text-slate-800 mb-2">Quy trình Tự động</h3>
-                            <p className="text-slate-600 text-sm mb-4">Kết nối chuỗi hành động: Bước 1 (Hỏi ChatGPT) -> Bước 2 (Lấy kết quả đó Search Google).</p>
+                            <p className="text-slate-600 text-sm mb-4">Kết nối chuỗi hành động: Bước 1 (Hỏi ChatGPT) {'->'} Bước 2 (Lấy kết quả đó Search Google).</p>
                          </div>
                       </div>
                    )}
