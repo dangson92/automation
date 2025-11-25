@@ -121,61 +121,79 @@ const App: React.FC = () => {
 
   const handleClearQueue = async () => {
     if (confirm("Xóa toàn bộ danh sách kết quả?")) {
-      // Stop any running process first (non-blocking)
+      // Force stop immediately and wait for it
       stopRef.current = true;
-
-      // Only call stopAutomation if actually processing
-      if (isProcessing && mode === 'ELECTRON' && window.electronAPI) {
-        window.electronAPI.stopAutomation().catch(err => {
-          console.error('Failed to stop automation:', err);
-        });
-      }
-
       setIsProcessing(false);
       processingRef.current = false;
 
-      // Clear queue and selections immediately
+      // Force stop automation synchronously
+      if (mode === 'ELECTRON' && window.electronAPI) {
+        try {
+          await window.electronAPI.stopAutomation();
+        } catch (err) {
+          console.error('Failed to stop automation:', err);
+        }
+      }
+
+      // Clear queue and selections
       setQueue([]);
       setProgress(0);
       setSelectedItemId(null);
       setSelectedItemIds(new Set());
 
-      // Focus input immediately
-      setTimeout(() => {
-        inputTextareaRef.current?.click();
-        inputTextareaRef.current?.focus();
-      }, 50);
+      // Force focus on window and input
+      requestAnimationFrame(() => {
+        window.focus(); // Focus window first
+        document.body.focus();
+
+        const textarea = inputTextareaRef.current;
+        if (textarea) {
+          textarea.removeAttribute('disabled');
+          textarea.removeAttribute('readonly');
+          textarea.focus();
+          textarea.click();
+        }
+      });
     }
   };
 
   const handleDeleteSelected = async () => {
     if (selectedItemIds.size === 0) return;
     if (confirm(`Xóa ${selectedItemIds.size} item đã chọn?`)) {
-      // Stop automation if running (non-blocking)
+      // Force stop immediately and wait for it
       stopRef.current = true;
-
-      // Only call stopAutomation if actually processing
-      if (isProcessing && mode === 'ELECTRON' && window.electronAPI) {
-        window.electronAPI.stopAutomation().catch(err => {
-          console.error('Failed to stop automation:', err);
-        });
-      }
-
       setIsProcessing(false);
       processingRef.current = false;
 
-      // Remove selected items immediately
+      // Force stop automation synchronously
+      if (mode === 'ELECTRON' && window.electronAPI) {
+        try {
+          await window.electronAPI.stopAutomation();
+        } catch (err) {
+          console.error('Failed to stop automation:', err);
+        }
+      }
+
+      // Remove selected items
       setQueue(prev => prev.filter(item => !selectedItemIds.has(item.id)));
       setSelectedItemIds(new Set());
       if (selectedItemId && selectedItemIds.has(selectedItemId)) {
         setSelectedItemId(null);
       }
 
-      // Focus input immediately
-      setTimeout(() => {
-        inputTextareaRef.current?.click();
-        inputTextareaRef.current?.focus();
-      }, 50);
+      // Force focus on window and input
+      requestAnimationFrame(() => {
+        window.focus(); // Focus window first
+        document.body.focus();
+
+        const textarea = inputTextareaRef.current;
+        if (textarea) {
+          textarea.removeAttribute('disabled');
+          textarea.removeAttribute('readonly');
+          textarea.focus();
+          textarea.click();
+        }
+      });
     }
   };
 
