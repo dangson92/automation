@@ -910,21 +910,62 @@ const App: React.FC = () => {
              </div>
           </section>
 
+          {/* Saved Workflows List */}
+          {savedAgents.length > 0 && (
+            <div className="pt-4 border-t border-slate-100">
+              <h3 className="text-xs font-bold uppercase text-slate-500 tracking-wider mb-3 flex items-center">
+                <Layers className="w-3 h-3 mr-1" />
+                Workflows đã lưu
+              </h3>
+              <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+                {savedAgents.map((agent) => (
+                  <div
+                    key={agent.id}
+                    className="group relative bg-white border border-slate-200 rounded-lg p-3 hover:border-indigo-400 hover:shadow-sm transition-all cursor-pointer"
+                    onClick={() => handleLoadAgent(agent.id)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-slate-700 truncate">
+                          {agent.name}
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-1">
+                          {agent.config.steps.length} bước • {agent.config.model}
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => handleDeleteAgent(agent.id, e)}
+                        className="opacity-0 group-hover:opacity-100 ml-2 p-1.5 text-slate-400 hover:text-red-500 rounded transition-all"
+                        title="Xóa workflow"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Save Agent */}
           <div className="pt-4 border-t border-slate-100">
             {!showSaveAgent ? (
               <button onClick={() => setShowSaveAgent(true)} className="w-full flex items-center justify-center space-x-2 py-2 border border-dashed border-indigo-300 text-indigo-600 text-sm rounded-lg hover:bg-indigo-50 transition-colors">
                 <Save className="w-4 h-4" />
-                <span>Lưu Workflow</span>
+                <span>Lưu Workflow Hiện Tại</span>
               </button>
             ) : (
               <div className="flex flex-col space-y-2 animate-in fade-in zoom-in duration-200">
-                <input 
+                <input
                   value={agentNameInput}
                   onChange={(e) => setAgentNameInput(e.target.value)}
-                  placeholder="Đặt tên..."
+                  placeholder="Đặt tên workflow..."
                   className="w-full text-sm border-slate-300 rounded px-3 py-2 border focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveAgent();
+                    if (e.key === 'Escape') setShowSaveAgent(false);
+                  }}
                 />
                 <div className="flex space-x-2">
                   <button onClick={handleSaveAgent} className="flex-1 bg-indigo-600 text-white py-1.5 rounded text-sm hover:bg-indigo-700">Lưu</button>
