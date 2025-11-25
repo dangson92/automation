@@ -121,62 +121,61 @@ const App: React.FC = () => {
 
   const handleClearQueue = async () => {
     if (confirm("Xóa toàn bộ danh sách kết quả?")) {
-      // Stop any running process first
+      // Stop any running process first (non-blocking)
       stopRef.current = true;
+
+      // Only call stopAutomation if actually processing
+      if (isProcessing && mode === 'ELECTRON' && window.electronAPI) {
+        window.electronAPI.stopAutomation().catch(err => {
+          console.error('Failed to stop automation:', err);
+        });
+      }
+
       setIsProcessing(false);
       processingRef.current = false;
 
-      // Force stop automation if running in Electron
-      if (mode === 'ELECTRON' && window.electronAPI) {
-        try {
-          await window.electronAPI.stopAutomation();
-        } catch (err) {
-          console.error('Failed to stop automation:', err);
-        }
-      }
-
-      // Clear queue and selections
+      // Clear queue and selections immediately
       setQueue([]);
       setProgress(0);
       setSelectedItemId(null);
       setSelectedItemIds(new Set());
 
-      // Simple direct focus after a small delay
+      // Focus input immediately
       setTimeout(() => {
         inputTextareaRef.current?.click();
         inputTextareaRef.current?.focus();
-      }, 100);
+      }, 50);
     }
   };
 
   const handleDeleteSelected = async () => {
     if (selectedItemIds.size === 0) return;
     if (confirm(`Xóa ${selectedItemIds.size} item đã chọn?`)) {
-      // Stop automation if running
+      // Stop automation if running (non-blocking)
       stopRef.current = true;
+
+      // Only call stopAutomation if actually processing
+      if (isProcessing && mode === 'ELECTRON' && window.electronAPI) {
+        window.electronAPI.stopAutomation().catch(err => {
+          console.error('Failed to stop automation:', err);
+        });
+      }
+
       setIsProcessing(false);
       processingRef.current = false;
 
-      if (mode === 'ELECTRON' && window.electronAPI) {
-        try {
-          await window.electronAPI.stopAutomation();
-        } catch (err) {
-          console.error('Failed to stop automation:', err);
-        }
-      }
-
-      // Remove selected items
+      // Remove selected items immediately
       setQueue(prev => prev.filter(item => !selectedItemIds.has(item.id)));
       setSelectedItemIds(new Set());
       if (selectedItemId && selectedItemIds.has(selectedItemId)) {
         setSelectedItemId(null);
       }
 
-      // Simple direct focus after a small delay
+      // Focus input immediately
       setTimeout(() => {
         inputTextareaRef.current?.click();
         inputTextareaRef.current?.focus();
-      }, 100);
+      }, 50);
     }
   };
 
