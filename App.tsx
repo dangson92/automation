@@ -7,6 +7,19 @@ import { StatusBadge } from './components/StatusBadge';
 // Fix for missing chrome types
 declare var chrome: any;
 
+// Electron API types
+interface ElectronAPI {
+  runAutomation: (data: any) => Promise<any>;
+  stopAutomation: () => Promise<any>;
+  openLoginWindow: (url: string) => Promise<any>;
+}
+
+declare global {
+  interface Window {
+    electronAPI?: ElectronAPI;
+  }
+}
+
 const DEFAULT_CONFIG: AppConfig = {
   systemInstruction: "Bạn là trợ lý AI hữu ích.",
   model: 'gemini-2.5-flash',
@@ -116,6 +129,12 @@ const App: React.FC = () => {
 
   const handleClearQueue = () => {
     if (confirm("Xóa toàn bộ danh sách kết quả?")) {
+      // Stop any running process first
+      stopRef.current = true;
+      setIsProcessing(false);
+      processingRef.current = false;
+
+      // Clear queue
       setQueue([]);
       setProgress(0);
       setSelectedItemId(null);
@@ -432,10 +451,20 @@ const App: React.FC = () => {
     processingRef.current = false;
   }, [queue, config, mode, automationConfig, headless]);
 
-  const handleStop = () => {
+  const handleStop = async () => {
     stopRef.current = true;
     setIsProcessing(false);
     processingRef.current = false;
+
+    // If running in Electron, stop the worker window
+    if (mode === 'ELECTRON' && window.electronAPI) {
+      try {
+        await window.electronAPI.stopAutomation();
+        console.log('Automation stopped');
+      } catch (err) {
+        console.error('Failed to stop automation:', err);
+      }
+    }
   };
 
   const handleExportCSV = () => {
@@ -614,6 +643,39 @@ const App: React.FC = () => {
                     <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${headless ? 'translate-x-1' : 'translate-x-5'}`} />
                  </button>
               </div>
+
+              {/* LOGIN SESSION MANAGEMENT - ELECTRON ONLY */}
+              {mode === 'ELECTRON' && (
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="text-xs font-bold text-green-800 mb-1 flex items-center">
+                        <UserCog className="w-4 h-4 mr-1" />
+                        Quản lý Đăng nhập
+                      </div>
+                      <p className="text-[10px] text-green-700 leading-relaxed mb-2">
+                        Đăng nhập trước để tránh bị gián đoạn giữa chừng. Phiên đăng nhập sẽ được lưu tự động.
+                      </p>
+                      <button
+                        onClick={async () => {
+                          if (!window.electronAPI) return;
+                          const url = config.steps[0]?.url || 'https://chatgpt.com/';
+                          try {
+                            await window.electronAPI.openLoginWindow(url);
+                            alert('Đã lưu phiên đăng nhập! Bạn có thể đóng cửa sổ đăng nhập.');
+                          } catch (err: any) {
+                            alert('Lỗi: ' + err.message);
+                          }
+                        }}
+                        className="flex items-center space-x-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-md text-xs font-bold transition-colors shadow-sm"
+                      >
+                        <UserCog className="w-3 h-3" />
+                        <span>Mở cửa sổ đăng nhập</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
           </section>
 
           {/* ... (Existing Steps Editor & Save Logic) ... */}
