@@ -72,6 +72,14 @@ const App: React.FC = () => {
   const [showSaveAgent, setShowSaveAgent] = useState(false);
   const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(null); // Track currently loaded workflow
 
+  // Login URLs Management
+  const [customLoginUrls, setCustomLoginUrls] = useState<string[]>(() => {
+    const saved = localStorage.getItem('promptflow_custom_login_urls');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [showCustomUrlModal, setShowCustomUrlModal] = useState(false);
+  const [customUrlInput, setCustomUrlInput] = useState("");
+
   // UI State
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
@@ -124,6 +132,10 @@ const App: React.FC = () => {
   }, [savedAgents]);
 
   useEffect(() => {
+    localStorage.setItem('promptflow_custom_login_urls', JSON.stringify(customLoginUrls));
+  }, [customLoginUrls]);
+
+  useEffect(() => {
     if (mode === 'ELECTRON' && window.electronAPI) {
       // Save to file in Electron mode
       window.electronAPI.saveQueue(queue).catch(err => {
@@ -137,6 +149,35 @@ const App: React.FC = () => {
 
   // --- Helpers ---
   const generateId = () => Math.random().toString(36).substring(2, 9);
+
+  const handleOpenLogin = (url: string) => {
+    if (!window.electronAPI || mode !== 'ELECTRON') return;
+
+    window.electronAPI.openLoginWindow(url)
+      .then(() => {
+        console.log('Login window closed, session saved');
+      })
+      .catch((err: any) => {
+        console.error('Login error:', err);
+        alert('Lỗi mở cửa sổ đăng nhập: ' + err.message);
+      });
+  };
+
+  const handleOpenCustomLogin = () => {
+    if (!customUrlInput.trim()) {
+      alert('Vui lòng nhập URL');
+      return;
+    }
+
+    // Add to history if not already there
+    if (!customLoginUrls.includes(customUrlInput)) {
+      setCustomLoginUrls(prev => [customUrlInput, ...prev].slice(0, 10)); // Keep last 10
+    }
+
+    handleOpenLogin(customUrlInput);
+    setShowCustomUrlModal(false);
+    setCustomUrlInput('');
+  };
 
   const handleAddPrompts = () => {
     if (!inputText.trim()) return;
@@ -847,6 +888,75 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* --- CUSTOM LOGIN URL MODAL --- */}
+      {showCustomUrlModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-slate-800 flex items-center">
+                <Globe className="w-5 h-5 mr-2 text-indigo-600" />
+                Đăng nhập trang khác
+              </h3>
+              <button onClick={() => setShowCustomUrlModal(false)} className="p-2 hover:bg-slate-100 rounded-full">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-semibold text-slate-700 mb-2 block">Nhập URL trang web:</label>
+                <input
+                  type="text"
+                  value={customUrlInput}
+                  onChange={(e) => setCustomUrlInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleOpenCustomLogin();
+                  }}
+                  placeholder="https://example.com/"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                  autoFocus
+                />
+              </div>
+
+              {/* History of custom URLs */}
+              {customLoginUrls.length > 0 && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase mb-2 block">Lịch sử đăng nhập:</label>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {customLoginUrls.map((url, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          setCustomUrlInput(url);
+                        }}
+                        className="w-full text-left px-3 py-2 text-xs bg-slate-50 hover:bg-slate-100 rounded border border-slate-200 transition-colors truncate"
+                      >
+                        {url}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex space-x-2">
+                <button
+                  onClick={handleOpenCustomLogin}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-colors"
+                >
+                  Mở đăng nhập
+                </button>
+                <button
+                  onClick={() => setShowCustomUrlModal(false)}
+                  className="px-4 py-2 border border-slate-300 hover:bg-slate-50 rounded-lg text-sm font-semibold transition-colors"
+                >
+                  Hủy
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* --- SIDEBAR --- */}
       <aside className="w-96 bg-white border-r border-slate-200 flex flex-col shadow-sm z-20">
         <div className="p-4 border-b border-slate-100 flex items-center justify-between">
@@ -924,36 +1034,50 @@ const App: React.FC = () => {
               {/* LOGIN SESSION MANAGEMENT - ELECTRON ONLY */}
               {mode === 'ELECTRON' && (
                 <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="text-xs font-bold text-green-800 mb-1 flex items-center">
-                        <UserCog className="w-4 h-4 mr-1" />
-                        Quản lý Đăng nhập
-                      </div>
-                      <p className="text-[10px] text-green-700 leading-relaxed mb-2">
-                        Đăng nhập trước để tránh bị gián đoạn giữa chừng. Phiên đăng nhập sẽ được lưu tự động.
-                      </p>
-                      <button
-                        onClick={() => {
-                          if (!window.electronAPI) return;
-                          const url = config.steps[0]?.url || 'https://chatgpt.com/';
+                  <div className="text-xs font-bold text-green-800 mb-1 flex items-center">
+                    <UserCog className="w-4 h-4 mr-1" />
+                    Quản lý Đăng nhập
+                  </div>
+                  <p className="text-[10px] text-green-700 leading-relaxed mb-3">
+                    Đăng nhập trước để tránh bị gián đoạn. Phiên đăng nhập sẽ được lưu tự động.
+                  </p>
 
-                          // Open login window (non-blocking)
-                          window.electronAPI.openLoginWindow(url)
-                            .then(() => {
-                              console.log('Login window closed, session saved');
-                            })
-                            .catch((err: any) => {
-                              console.error('Login error:', err);
-                              alert('Lỗi mở cửa sổ đăng nhập: ' + err.message);
-                            });
-                        }}
-                        className="flex items-center space-x-1 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-md text-xs font-bold transition-colors shadow-sm"
-                      >
-                        <UserCog className="w-3 h-3" />
-                        <span>Mở cửa sổ đăng nhập</span>
-                      </button>
-                    </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* ChatGPT */}
+                    <button
+                      onClick={() => handleOpenLogin('https://chatgpt.com/')}
+                      className="flex items-center justify-center space-x-1 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md text-xs font-bold transition-colors shadow-sm"
+                    >
+                      <Bot className="w-3 h-3" />
+                      <span>ChatGPT</span>
+                    </button>
+
+                    {/* Claude */}
+                    <button
+                      onClick={() => handleOpenLogin('https://claude.ai/')}
+                      className="flex items-center justify-center space-x-1 bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-md text-xs font-bold transition-colors shadow-sm"
+                    >
+                      <Bot className="w-3 h-3" />
+                      <span>Claude</span>
+                    </button>
+
+                    {/* Perplexity */}
+                    <button
+                      onClick={() => handleOpenLogin('https://perplexity.ai/')}
+                      className="flex items-center justify-center space-x-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md text-xs font-bold transition-colors shadow-sm"
+                    >
+                      <Bot className="w-3 h-3" />
+                      <span>Perplexity</span>
+                    </button>
+
+                    {/* Other */}
+                    <button
+                      onClick={() => setShowCustomUrlModal(true)}
+                      className="flex items-center justify-center space-x-1 bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-md text-xs font-bold transition-colors shadow-sm"
+                    >
+                      <Globe className="w-3 h-3" />
+                      <span>Khác...</span>
+                    </button>
                   </div>
                 </div>
               )}
