@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Play, Pause, Plus, Trash2, Download, Save, UserCog, ChevronDown, Bot, Layout, Zap, X, Globe, HelpCircle, ArrowRight, Link as LinkIcon, Target, CheckCircle2, Cpu, FileText, Box, Layers, AlertTriangle, Monitor, Eye, EyeOff, Settings } from 'lucide-react';
 import { Status, QueueItem, AppConfig, SavedAgent, AutomationConfig, WorkflowStep, StepResult } from './types';
+import { OutputEditor } from './components/OutputEditor';
 import { generateContent } from './services/geminiService';
 import { StatusBadge } from './components/StatusBadge';
 
@@ -92,6 +93,8 @@ const App: React.FC = () => {
 
   // Selected items for batch delete
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  const [editingOutput, setEditingOutput] = useState<{ itemId: string; stepId: string; content: string } | null>(null);
+  const [rerunStepId, setRerunStepId] = useState<string | null>(null);
 
   // --- Init ---
   useEffect(() => {
@@ -339,6 +342,88 @@ const App: React.FC = () => {
     setQueue(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item));
   };
 
+  const updateResultContent = (itemId: string, stepId: string, content: string) => {
+    setQueue(prev => prev.map(item => {
+      if (item.id !== itemId) return item;
+      const newResults = (item.results || []).map(r => r.stepId === stepId ? { ...r, response: content } : r);
+      const finalResponse = newResults.length ? newResults[newResults.length - 1].response : item.finalResponse;
+      return { ...item, results: newResults, finalResponse };
+    }));
+  };
+
+  const handleRerunStep = async (itemId: string, stepIndex: number) => {
+    if (isProcessing) {
+      alert('Đang xử lý queue, vui lòng dừng trước khi chạy lại bước.');
+      return;
+    }
+    const item = queue.find(i => i.id === itemId);
+    if (!item) return;
+    const step = config.steps[stepIndex];
+    if (!step) return;
+
+    const stepUrl = step.url || automationConfig.defaultUrl;
+    let previousResult = '';
+    if (stepIndex > 0 && item.results[stepIndex - 1]) {
+      previousResult = item.results[stepIndex - 1].response || '';
+    }
+    const localResults: StepResult[] = [...item.results];
+
+    let promptToSend = step.template.replace(/\{\{input\}\}/g, item.originalPrompt);
+    promptToSend = promptToSend.replace(/\{\{prev\}\}/g, previousResult);
+    for (let prevIdx = 0; prevIdx < stepIndex; prevIdx++) {
+      const prevResult = localResults[prevIdx]?.response || '';
+      const prevVar = `{{prev${prevIdx + 1}}}`;
+      const rx = new RegExp(prevVar.replace(/[{}]/g, '\\$&'), 'g');
+      promptToSend = promptToSend.replace(rx, prevResult);
+    }
+
+    if (mode !== 'ELECTRON' || !window.electronAPI) {
+      alert('Chạy lại bước chỉ hỗ trợ trong Desktop App');
+      return;
+    }
+
+    try {
+      setRerunStepId(step.id);
+      const res = await window.electronAPI.runAutomation({
+        url: stepUrl,
+        selectors: step.selectors || {},
+        useCustomSelectors: !!step.useCustomSelectors,
+        prompt: promptToSend,
+        headless
+      });
+      setRerunStepId(null);
+      if (res.error) {
+        alert('Lỗi chạy lại: ' + res.error);
+        return;
+      }
+      const newResponse = res.text || '';
+      setQueue(prev => prev.map(q => {
+        if (q.id !== itemId) return q;
+        const existingIndex = (q.results || []).findIndex(r => r.stepId === step.id);
+        const newResult: StepResult = {
+          stepId: step.id,
+          stepName: step.name,
+          prompt: promptToSend,
+          response: newResponse,
+          timestamp: Date.now(),
+          url: stepUrl
+        };
+        let newResults: StepResult[];
+        if (existingIndex >= 0) {
+          newResults = [...q.results];
+          newResults[existingIndex] = newResult;
+        } else {
+          newResults = [...q.results, newResult];
+        }
+        const finalResponse = newResults.length ? newResults[newResults.length - 1].response : q.finalResponse;
+        return { ...q, results: newResults, finalResponse };
+      }));
+    } catch (e: any) {
+      setRerunStepId(null);
+      alert('Lỗi chạy lại: ' + e.message);
+    }
+  };
+
   const appendLog = (id: string, message: string) => {
      setQueue(prev => prev.map(item => {
         if (item.id !== id) return item;
@@ -556,9 +641,9 @@ const App: React.FC = () => {
                             const outEls = document.querySelectorAll(sOut);
                             if (outEls.length > 0 && attempts > 3) {
                                 const lastEl = outEls[outEls.length - 1] as HTMLElement;
-                                if (lastEl.innerText.length > 5) {
+                                if (lastEl.innerHTML.length > 5) {
                                     clearInterval(interval);
-                                    resolveScript({ success: true, text: lastEl.innerText });
+                                    resolveScript({ success: true, text: lastEl.innerHTML });
                                 }
                             }
                             if (attempts >= maxAttempts) {
@@ -566,7 +651,7 @@ const App: React.FC = () => {
                                 const lastEl = outEls[outEls.length - 1] as HTMLElement;
                                 resolveScript({ 
                                     success: true, 
-                                    text: lastEl ? lastEl.innerText : "Timeout: Không tìm thấy kết quả" 
+                                    text: lastEl ? lastEl.innerHTML : "Timeout: Không tìm thấy kết quả" 
                                 });
                             }
                         }, 1500);
@@ -1775,10 +1860,23 @@ const App: React.FC = () => {
 
                             {/* Response Received */}
                             <div>
-                               <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Kết quả</div>
-                               <div className="text-sm text-slate-800 bg-white border border-indigo-100 p-3 rounded-lg shadow-sm whitespace-pre-wrap prose prose-sm max-w-none">
-                                  {result.response}
-                               </div>
+                              <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Kết quả</div>
+                              <div className="text-sm text-slate-800 bg-white border border-indigo-100 p-3 rounded-lg shadow-sm prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: result.response }} />
+                              <div className="mt-2 flex items-center space-x-2">
+                                <button
+                                  className="px-2 py-1 text-xs rounded bg-indigo-600 text-white"
+                                  onClick={() => setEditingOutput({ itemId: selectedItem.id, stepId: result.stepId, content: result.response })}
+                                >
+                                  Chỉnh sửa
+                                </button>
+                                <button
+                                  className="px-2 py-1 text-xs rounded bg-amber-600 text-white disabled:opacity-50"
+                                  onClick={() => handleRerunStep(selectedItem.id, idx)}
+                                  disabled={rerunStepId === result.stepId}
+                                >
+                                  {rerunStepId === result.stepId ? 'Đang chạy lại...' : 'Chạy lại'}
+                                </button>
+                              </div>
                             </div>
                          </div>
                       ))}
@@ -1805,6 +1903,14 @@ const App: React.FC = () => {
                    )}
                 </div>
              </div>
+          )}
+
+          {editingOutput && (
+            <OutputEditor
+              initialHtml={editingOutput.content}
+              onSave={(html) => { updateResultContent(editingOutput.itemId, editingOutput.stepId, html); setEditingOutput(null); }}
+              onCancel={() => setEditingOutput(null)}
+            />
           )}
 
         </div>

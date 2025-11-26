@@ -676,10 +676,10 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
           }
 
           const lastEl = outEls[outEls.length - 1];
-          const finalText = lastEl.innerText || lastEl.textContent || '';
+          const finalHtml = lastEl.innerHTML || '';
 
-          console.log('Output captured. Length:', finalText.length, 'Preview:', finalText.substring(0, 100) + '...');
-          return { success: true, text: finalText };
+          console.log('Output captured. Length:', finalHtml.length, 'Preview:', finalHtml.substring(0, 100) + '...');
+          return { success: true, text: finalHtml };
 
         } catch (scriptError) {
           console.error('Script execution error:', scriptError);
