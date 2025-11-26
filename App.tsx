@@ -311,7 +311,7 @@ const App: React.FC = () => {
         return {
           ...s,
           selectors: {
-            ...s.selectors,
+            ...(s.selectors || {}), // Ensure selectors exists
             [selectorField]: value
           }
         };
