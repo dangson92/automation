@@ -232,11 +232,24 @@ ipcMain.handle('selector-picker-open', async (event, url) => {
       `);
     });
 
-    pickerWindow.on('closed', async () => {
+    // Listen for 'close' event (before destroyed) to capture result
+    pickerWindow.on('close', async (e) => {
+      // Prevent default close to read result first
+      e.preventDefault();
+
       try {
-        const result = await pickerWindow.webContents.executeJavaScript('window.__selectorPickerResult');
-        resolve({ success: true, selector: result || null });
+        // Read result before window is destroyed
+        const result = await pickerWindow.webContents.executeJavaScript('window.__selectorPickerResult || null');
+        console.log('[Picker] Selected CSS:', result);
+
+        // Now actually destroy the window
+        pickerWindow.destroy();
+
+        // Resolve with the result
+        resolve({ success: true, selector: result });
       } catch (err) {
+        console.error('[Picker] Error reading result:', err);
+        pickerWindow.destroy();
         resolve({ success: true, selector: null });
       }
     });
