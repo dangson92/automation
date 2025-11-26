@@ -74,6 +74,61 @@ ipcMain.handle('queue-load', async () => {
 
 // --- AUTOMATION HANDLERS ---
 
+// Auto-detect selectors based on platform URL
+function getSelectorsForPlatform(url) {
+  const urlLower = url.toLowerCase();
+
+  // ChatGPT
+  if (urlLower.includes('chatgpt.com') || urlLower.includes('chat.openai.com')) {
+    return {
+      input: '#prompt-textarea',
+      submit: 'button[data-testid="send-button"]',
+      output: '.markdown',
+      stopButton: [
+        'button[aria-label*="Stop"]',
+        'button[data-testid*="stop"]'
+      ]
+    };
+  }
+
+  // Claude.ai
+  if (urlLower.includes('claude.ai')) {
+    return {
+      input: 'div[contenteditable="true"]',
+      submit: 'button[aria-label*="send-message"], button:has-text("Send")',
+      output: 'div.font-claude-message',
+      stopButton: [
+        'button[aria-label*="stop-response"]',
+        'button:has-text("Stop")'
+      ]
+    };
+  }
+
+  // Perplexity.ai
+  if (urlLower.includes('perplexity.ai')) {
+    return {
+      input: 'textarea[placeholder*="Ask"], textarea',
+      submit: 'button[aria-label*="Submit"], button:has-text("Submit")',
+      output: 'div.prose',
+      stopButton: [
+        'button:has-text("Stop generating")',
+        'button[aria-label*="Stop"]'
+      ]
+    };
+  }
+
+  // Default (generic)
+  return {
+    input: 'textarea, input[type="text"], div[contenteditable="true"]',
+    submit: 'button[type="submit"]',
+    output: 'div, p',
+    stopButton: [
+      'button[aria-label*="Stop"]',
+      'button[aria-label*="stop"]'
+    ]
+  };
+}
+
 // Visual Selector Picker
 ipcMain.handle('selector-picker-open', async (event, url) => {
   console.log('Opening selector picker for:', url);
@@ -249,6 +304,18 @@ ipcMain.handle('automation-stop', async () => {
 ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headless }) => {
   console.log('Running automation for:', url, 'Headless:', headless);
 
+  // Auto-detect selectors based on platform, merge with provided selectors
+  const detectedSelectors = getSelectorsForPlatform(url);
+  const finalSelectors = {
+    input: selectors.input || detectedSelectors.input,
+    submit: selectors.submit || detectedSelectors.submit,
+    output: selectors.output || detectedSelectors.output
+  };
+  const stopButtonSelectors = detectedSelectors.stopButton;
+
+  console.log('Using selectors:', finalSelectors);
+  console.log('Stop button selectors:', stopButtonSelectors);
+
   // Tạo một cửa sổ worker (sử dụng persistent session để giữ login)
   const workerWindow = new BrowserWindow({
     show: !headless, // Nếu headless = true thì show = false (ẩn)
@@ -280,9 +347,10 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
 
     // Inject Script với proper escaping using JSON.stringify
     const scriptParams = {
-      inputSel: selectors.input,
-      submitSel: selectors.submit,
-      outputSel: selectors.output,
+      inputSel: finalSelectors.input,
+      submitSel: finalSelectors.submit,
+      outputSel: finalSelectors.output,
+      stopButtonSels: stopButtonSelectors,
       textToType: prompt
     };
 
@@ -295,6 +363,7 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
           const inputSel = params.inputSel;
           const submitSel = params.submitSel;
           const outputSel = params.outputSel;
+          const stopButtonSels = params.stopButtonSels;
           const textToType = params.textToType;
 
           console.log('Script started. Looking for:', inputSel);
@@ -443,16 +512,7 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
 
           // 4. Wait for AI Generation to Complete by monitoring stop button
           console.log('Monitoring stop button to detect generation completion...');
-
-          // Try common stop button selectors
-          const stopButtonSelectors = [
-            'button[aria-label*="Stop"]',
-            'button[aria-label*="stop"]',
-            'button[data-testid*="stop"]',
-            'button.stop-button',
-            'button[title*="Stop"]',
-            'button:has(svg):not([data-testid="send-button"])'
-          ];
+          console.log('Using platform-specific stop button selectors:', stopButtonSels);
 
           // Wait for stop button to appear (generation started)
           let stopButton = null;
@@ -460,8 +520,8 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
           while (generationStartAttempts < 20) { // Max 10 seconds
             await sleep(500);
 
-            // Try each selector
-            for (const selector of stopButtonSelectors) {
+            // Try each platform-specific selector
+            for (const selector of stopButtonSels) {
               const btn = document.querySelector(selector);
               if (btn) {
                 stopButton = btn;
