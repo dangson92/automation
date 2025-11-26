@@ -51,7 +51,10 @@ const isElectron = () => {
 
 const App: React.FC = () => {
   // --- State ---
-  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [queue, setQueue] = useState<QueueItem[]>(() => {
+    const saved = localStorage.getItem('promptflow_queue');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [inputText, setInputText] = useState("");
@@ -98,6 +101,10 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('promptflow_agents', JSON.stringify(savedAgents));
   }, [savedAgents]);
+
+  useEffect(() => {
+    localStorage.setItem('promptflow_queue', JSON.stringify(queue));
+  }, [queue]);
 
   // --- Helpers ---
   const generateId = () => Math.random().toString(36).substring(2, 9);
