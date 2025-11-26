@@ -285,6 +285,7 @@ const App: React.FC = () => {
       name: `Bước ${config.steps.length + 1}`,
       url: "https://chatgpt.com/",
       template: config.steps.length === 0 ? "{{input}}" : "Xử lý kết quả: {{prev}}",
+      useCustomSelectors: false, // Default to auto-detect
       selectors: { input: "", submit: "", output: "" }
     };
     setConfig(prev => ({ ...prev, steps: [...prev.steps, newStep] }));
@@ -332,13 +333,32 @@ const App: React.FC = () => {
     }
 
     try {
+      console.log('[DEBUG] Opening selector picker for:', step.url);
       const result = await window.electronAPI.pickSelector(step.url);
+      console.log('[DEBUG] Picker result:', result);
+
       if (result.success && result.selector) {
+        console.log('[DEBUG] Setting selector:', selectorField, '=', result.selector);
         handleUpdateStepSelector(stepId, selectorField, result.selector);
+        console.log('[DEBUG] Selector updated successfully');
+      } else {
+        console.log('[DEBUG] No selector returned or picker cancelled');
       }
     } catch (err: any) {
+      console.error('[DEBUG] Pick selector error:', err);
       alert('Lỗi: ' + err.message);
     }
+  };
+
+  const handleToggleCustomSelectors = (stepId: string) => {
+    setConfig(prev => ({
+      ...prev,
+      steps: prev.steps.map(s =>
+        s.id === stepId
+          ? { ...s, useCustomSelectors: !s.useCustomSelectors }
+          : s
+      )
+    }));
   };
 
   // --- Agent Management ---
@@ -561,7 +581,7 @@ const App: React.FC = () => {
              const modeMsg = headless ? "chạy ẩn" : "chạy nổi";
              appendLog(id, `[DESKTOP] Truy cập (${modeMsg}): ${stepUrl}`);
              if (!window.electronAPI) throw new Error("Electron API not initialized");
-             
+
              const result = await window.electronAPI.runAutomation({
                 url: stepUrl,
                 selectors: {
@@ -569,6 +589,7 @@ const App: React.FC = () => {
                   submit: step.selectors?.submit || automationConfig.submitSelector,
                   output: step.selectors?.output || automationConfig.outputSelector,
                 },
+                useCustomSelectors: step.useCustomSelectors || false,
                 prompt: promptToSend,
                 headless: headless // Pass current headless state
              });
@@ -1225,11 +1246,36 @@ const App: React.FC = () => {
                                </div>
 
                                <div className="pt-3 border-t border-slate-100">
-                                  <h4 className="text-[10px] font-bold text-slate-500 uppercase mb-2 flex items-center">
-                                    <Target className="w-3 h-3 mr-1" />
-                                    CSS Selectors
-                                  </h4>
-                                  <div className="space-y-2">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <h4 className="text-[10px] font-bold text-slate-500 uppercase flex items-center">
+                                      <Target className="w-3 h-3 mr-1" />
+                                      CSS Selectors
+                                    </h4>
+                                    <div className="flex items-center space-x-2">
+                                      <span className="text-[10px] text-slate-500">
+                                        {step.useCustomSelectors ? 'Tùy chỉnh' : 'Tự động'}
+                                      </span>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleToggleCustomSelectors(step.id);
+                                        }}
+                                        className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors focus:outline-none ${step.useCustomSelectors ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                                        title={step.useCustomSelectors ? 'Sử dụng CSS selector tùy chỉnh' : 'Sử dụng auto-detect từ URL'}
+                                      >
+                                        <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${step.useCustomSelectors ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {!step.useCustomSelectors && (
+                                    <div className="mb-2 text-[10px] text-slate-500 bg-slate-50 p-2 rounded border border-slate-200">
+                                      <span className="font-semibold">Chế độ tự động:</span> Selectors sẽ được nhận diện dựa trên URL (ChatGPT, Claude.ai, Perplexity.ai)
+                                    </div>
+                                  )}
+
+                                  {step.useCustomSelectors && (
+                                    <div className="space-y-2">
                                     <div className="flex items-center space-x-1">
                                       <span className="text-[10px] w-12 text-slate-400">Input</span>
                                       <input
@@ -1288,6 +1334,7 @@ const App: React.FC = () => {
                                       )}
                                     </div>
                                   </div>
+                                  )}
                                </div>
 
                             </div>
