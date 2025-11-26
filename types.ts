@@ -69,6 +69,8 @@ declare global {
       stopAutomation: () => Promise<{ success?: boolean; message?: string }>;
       openLoginWindow: (url: string) => Promise<{ success?: boolean }>;
       pickSelector: (url: string) => Promise<{ success?: boolean; selector?: string | null }>;
+      saveQueue: (queueData: QueueItem[]) => Promise<{ success: boolean; error?: string }>;
+      loadQueue: () => Promise<{ success: boolean; data: QueueItem[]; error?: string }>;
     };
   }
 }
