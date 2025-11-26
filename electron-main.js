@@ -301,19 +301,25 @@ ipcMain.handle('automation-stop', async () => {
 });
 
 // Run automation
-ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headless }) => {
-  console.log('Running automation for:', url, 'Headless:', headless);
+ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelectors, prompt, headless }) => {
+  console.log('Running automation for:', url, 'Headless:', headless, 'Use Custom Selectors:', useCustomSelectors);
 
-  // Auto-detect selectors based on platform, merge with provided selectors
+  // Auto-detect selectors based on platform
   const detectedSelectors = getSelectorsForPlatform(url);
-  const finalSelectors = {
+
+  // If useCustomSelectors is true, use provided selectors; otherwise use auto-detected
+  const finalSelectors = useCustomSelectors ? {
     input: selectors.input || detectedSelectors.input,
     submit: selectors.submit || detectedSelectors.submit,
     output: selectors.output || detectedSelectors.output
+  } : {
+    input: detectedSelectors.input,
+    submit: detectedSelectors.submit,
+    output: detectedSelectors.output
   };
   const stopButtonSelectors = detectedSelectors.stopButton;
 
-  console.log('Using selectors:', finalSelectors);
+  console.log('Using selectors (custom=' + useCustomSelectors + '):', finalSelectors);
   console.log('Stop button selectors:', stopButtonSelectors);
 
   // Tạo một cửa sổ worker (sử dụng persistent session để giữ login)

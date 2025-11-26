@@ -12,6 +12,7 @@ export interface WorkflowStep {
   name: string;
   template: string; // e.g. "Translate this: {{prev}}"
   url: string; // Target URL for this specific step
+  useCustomSelectors?: boolean; // Toggle for manual CSS selectors
   selectors?: {
     input?: string;
     submit?: string;
@@ -65,7 +66,7 @@ export interface SavedAgent {
 declare global {
   interface Window {
     electronAPI?: {
-      runAutomation: (data: { url: string; selectors: any; prompt: string; headless: boolean }) => Promise<{ success?: boolean; text?: string; error?: string }>;
+      runAutomation: (data: { url: string; selectors: any; useCustomSelectors: boolean; prompt: string; headless: boolean }) => Promise<{ success?: boolean; text?: string; error?: string }>;
       stopAutomation: () => Promise<{ success?: boolean; message?: string }>;
       openLoginWindow: (url: string) => Promise<{ success?: boolean }>;
       pickSelector: (url: string) => Promise<{ success?: boolean; selector?: string | null }>;
