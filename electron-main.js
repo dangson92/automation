@@ -94,12 +94,12 @@ function getSelectorsForPlatform(url) {
   // Claude.ai
   if (urlLower.includes('claude.ai')) {
     return {
-      input: 'div[contenteditable="true"]',
-      submit: 'button[aria-label*="send-message"], button:has-text("Send")',
-      output: 'div.font-claude-message',
+      input: 'div[contenteditable="true"][data-placeholder], div.ProseMirror[contenteditable="true"]',
+      submit: 'button[aria-label="Send Message"], button svg[data-icon="send"]',
+      output: 'div[data-is-streaming], div.font-claude-message, div.prose',
       stopButton: [
-        'button[aria-label*="stop-response"]',
-        'button:has-text("Stop")'
+        'button[aria-label*="stop"]',
+        'button[aria-label*="Stop"]'
       ]
     };
   }
@@ -107,11 +107,11 @@ function getSelectorsForPlatform(url) {
   // Perplexity.ai
   if (urlLower.includes('perplexity.ai')) {
     return {
-      input: 'textarea[placeholder*="Ask"], textarea',
-      submit: 'button[aria-label*="Submit"], button:has-text("Submit")',
-      output: 'div.prose',
+      input: 'textarea[placeholder*="Ask"], textarea[placeholder*="Follow"], textarea.svelte',
+      submit: 'button[aria-label*="Submit"], button[type="submit"]',
+      output: 'div.prose, div[class*="answer"], div[class*="result"]',
       stopButton: [
-        'button:has-text("Stop generating")',
+        'button:has-text("Stop")',
         'button[aria-label*="Stop"]'
       ]
     };
