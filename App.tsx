@@ -565,6 +565,18 @@ const App: React.FC = () => {
     setIsProcessing(false);
     processingRef.current = false;
 
+    // Update status of currently running items to FAILED
+    setQueue(prev => prev.map(item => {
+      if (item.status === Status.RUNNING) {
+        return {
+          ...item,
+          status: Status.FAILED,
+          error: 'Đã dừng bởi người dùng'
+        };
+      }
+      return item;
+    }));
+
     // If running in Electron, stop the worker window
     if (mode === 'ELECTRON' && window.electronAPI) {
       try {

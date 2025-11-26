@@ -403,52 +403,62 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
 
           console.log('Waiting for response...');
 
-          // 4. Wait for Result - Increase initial wait time for AI generation to start
-          await sleep(5000); // Wait longer for generation start
+          // 4. Wait for AI Generation to Complete by monitoring submit button state
+          console.log('Monitoring submit button to detect generation completion...');
 
-          let outputWaitAttempts = 0;
-          let lastText = "";
-          let stableCount = 0;
-
-          // Poll cho đến khi text không đổi (hoàn tất) hoặc timeout
-          while(outputWaitAttempts < 60) { // Max 60s
-             await sleep(1000);
-             const outEls = document.querySelectorAll(outputSel);
-
-             if(outputWaitAttempts === 0) {
-                console.log('Looking for output elements with selector:', outputSel);
-                console.log('Found', outEls.length, 'output elements');
-             }
-
-             if(outEls.length > 0) {
-                const lastEl = outEls[outEls.length - 1];
-                const currentText = lastEl.innerText || lastEl.textContent || '';
-
-                if(outputWaitAttempts % 5 === 0 && currentText.length > 0) {
-                   console.log('Output text length:', currentText.length, 'Preview:', currentText.substring(0, 100) + '...');
-                }
-
-                if(currentText.length > 10 && currentText === lastText) {
-                   stableCount++;
-                } else {
-                   stableCount = 0;
-                }
-                lastText = currentText;
-
-                // Nếu text không đổi trong 3 giây -> coi như xong
-                if(stableCount >= 3 && currentText.length > 10) {
-                   console.log('Response stable, returning result...');
-                   return { success: true, text: currentText };
-                }
-             }
-             outputWaitAttempts++;
-             if(outputWaitAttempts % 10 === 0) {
-                console.log('Still waiting for stable response... attempt:', outputWaitAttempts);
-             }
+          // Wait for submit button to become disabled (generation started)
+          let generationStartAttempts = 0;
+          while (generationStartAttempts < 20) { // Max 10 seconds
+            await sleep(500);
+            const submitBtn = document.querySelector(submitSel);
+            if (submitBtn && submitBtn.disabled) {
+              console.log('Generation started (submit button disabled)');
+              break;
+            }
+            generationStartAttempts++;
           }
 
-          console.log('Timeout reached, returning last text...');
-          return { success: true, text: lastText || "Timeout waiting for result" };
+          if (generationStartAttempts >= 20) {
+            console.log('Warning: Submit button never disabled, continuing anyway...');
+          }
+
+          // Now wait for submit button to re-enable (generation complete)
+          let generationCompleteAttempts = 0;
+          while (generationCompleteAttempts < 120) { // Max 120 seconds (2 minutes)
+            await sleep(1000);
+            const submitBtn = document.querySelector(submitSel);
+
+            if (submitBtn && !submitBtn.disabled) {
+              console.log('Generation complete (submit button re-enabled)');
+              // Wait a bit more to ensure output is fully rendered
+              await sleep(2000);
+              break;
+            }
+
+            if (generationCompleteAttempts % 10 === 0) {
+              console.log('Still generating... attempt:', generationCompleteAttempts);
+            }
+            generationCompleteAttempts++;
+          }
+
+          if (generationCompleteAttempts >= 120) {
+            console.log('Warning: Timeout waiting for generation to complete');
+          }
+
+          // 5. Capture the output
+          console.log('Capturing output...');
+          const outEls = document.querySelectorAll(outputSel);
+
+          if (outEls.length === 0) {
+            console.error('No output elements found with selector:', outputSel);
+            return { error: 'Không tìm thấy output với selector: ' + outputSel };
+          }
+
+          const lastEl = outEls[outEls.length - 1];
+          const finalText = lastEl.innerText || lastEl.textContent || '';
+
+          console.log('Output captured. Length:', finalText.length, 'Preview:', finalText.substring(0, 100) + '...');
+          return { success: true, text: finalText };
 
         } catch (scriptError) {
           console.error('Script execution error:', scriptError);
