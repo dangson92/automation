@@ -59,7 +59,7 @@ const App: React.FC = () => {
   
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [automationConfig, setAutomationConfig] = useState<AutomationConfig>(DEFAULT_AUTOMATION);
-  const [headless, setHeadless] = useState(true); // Default true for automation
+  const [headless, setHeadless] = useState(false); // Default false: hiển trình duyệt
   
   const [mode, setMode] = useState<'API' | 'BROWSER' | 'EXTENSION' | 'ELECTRON'>('BROWSER');
   
@@ -149,6 +149,74 @@ const App: React.FC = () => {
 
   // --- Helpers ---
   const generateId = () => Math.random().toString(36).substring(2, 9);
+
+  const handleExportSettings = async () => {
+    const payload = { config, automationConfig };
+    if (mode === 'ELECTRON' && window.electronAPI) {
+      try {
+        const res = await window.electronAPI.exportSettings(payload);
+        if (!res.success) alert('Xuất thất bại');
+      } catch (e: any) {
+        alert('Lỗi xuất: ' + e.message);
+      }
+    } else {
+      try {
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'workflow-settings.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (e: any) {
+        alert('Lỗi xuất: ' + e.message);
+      }
+    }
+  };
+
+  const handleImportSettings = async () => {
+    if (mode === 'ELECTRON' && window.electronAPI) {
+      try {
+        const res = await window.electronAPI.importSettings();
+        if (res.success && res.data) {
+          setConfig(res.data.config);
+          setAutomationConfig(res.data.automationConfig);
+          if (res.data.config.steps.length > 0) setExpandedStepId(res.data.config.steps[0].id);
+        } else {
+          alert('Nhập thất bại');
+        }
+      } catch (e: any) {
+        alert('Lỗi nhập: ' + e.message);
+      }
+    } else {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json,application/json';
+      input.onchange = () => {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const data = JSON.parse(String(reader.result || '{}'));
+            if (data.config && data.automationConfig) {
+              setConfig(data.config);
+              setAutomationConfig(data.automationConfig);
+              if (data.config.steps && data.config.steps.length > 0) setExpandedStepId(data.config.steps[0].id);
+            } else {
+              alert('File không hợp lệ');
+            }
+          } catch (e: any) {
+            alert('Lỗi đọc file: ' + e.message);
+          }
+        };
+        reader.readAsText(file);
+      };
+      input.click();
+    }
+  };
 
   const handleOpenLogin = (url: string) => {
     if (!window.electronAPI || mode !== 'ELECTRON') return;
@@ -1046,9 +1114,9 @@ const App: React.FC = () => {
                  </div>
                  <button 
                     onClick={() => setHeadless(!headless)}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${headless ? 'bg-slate-300' : 'bg-indigo-600'}`}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${headless ? 'bg-indigo-600' : 'bg-slate-300'}`}
                  >
-                    <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${headless ? 'translate-x-1' : 'translate-x-5'}`} />
+                    <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${headless ? 'translate-x-5' : 'translate-x-1'}`} />
                  </button>
               </div>
 
@@ -1108,9 +1176,17 @@ const App: React.FC = () => {
           <section className="space-y-4">
              <div className="flex justify-between items-center">
                 <h2 className="text-xs font-bold uppercase text-slate-500 tracking-wider">Quy trình (Steps)</h2>
-                <button onClick={handleAddStep} className="text-indigo-600 hover:bg-indigo-50 p-1 rounded transition-colors text-xs font-bold flex items-center">
-                   <Plus className="w-3 h-3 mr-1" /> Thêm
-                </button>
+                <div className="flex items-center space-x-2">
+                  <button onClick={handleImportSettings} className="text-slate-600 hover:bg-slate-50 p-1 rounded transition-colors text-xs font-bold flex items-center">
+                    <FileText className="w-3 h-3 mr-1" /> Nhập
+                  </button>
+                  <button onClick={handleExportSettings} className="text-slate-600 hover:bg-slate-50 p-1 rounded transition-colors text-xs font-bold flex items-center">
+                    <Download className="w-3 h-3 mr-1" /> Xuất
+                  </button>
+                  <button onClick={handleAddStep} className="text-indigo-600 hover:bg-indigo-50 p-1 rounded transition-colors text-xs font-bold flex items-center">
+                     <Plus className="w-3 h-3 mr-1" /> Thêm
+                  </button>
+                </div>
              </div>
              
              <div className="space-y-3">

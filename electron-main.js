@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -72,6 +72,35 @@ ipcMain.handle('queue-load', async () => {
   }
 });
 
+ipcMain.handle('settings-export', async (event, settings) => {
+  try {
+    const { filePath, canceled } = await dialog.showSaveDialog({
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+      defaultPath: 'workflow-settings.json'
+    });
+    if (canceled || !filePath) return { success: false };
+    fs.writeFileSync(filePath, JSON.stringify(settings, null, 2), 'utf-8');
+    return { success: true, path: filePath };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('settings-import', async () => {
+  try {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    });
+    if (canceled || !filePaths || !filePaths[0]) return { success: false };
+    const raw = fs.readFileSync(filePaths[0], 'utf-8');
+    const data = JSON.parse(raw);
+    return { success: true, data };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
 // --- AUTOMATION HANDLERS ---
 
 // Auto-detect selectors based on platform URL
@@ -94,12 +123,18 @@ function getSelectorsForPlatform(url) {
   // Claude.ai
   if (urlLower.includes('claude.ai')) {
     return {
-      input: 'div[contenteditable="true"][data-placeholder], div.ProseMirror[contenteditable="true"]',
+      input: [
+        'div[contenteditable="true"][data-testid="chat-input"]',
+        'div.tiptap.ProseMirror[contenteditable="true"]',
+        'div[contenteditable="true"][aria-label*="Claude"]',
+        'div[contenteditable="true"][role="textbox"]'
+      ].join(', '),
       submit: 'button[aria-label="Send Message"], button svg[data-icon="send"]',
       output: 'div[data-is-streaming], div.font-claude-message, div.prose',
       stopButton: [
-        'button[aria-label*="stop"]',
-        'button[aria-label*="Stop"]'
+        'button[aria-label*="Stop"]',
+        'button[data-testid*="stop"]',
+        '[role="button"][aria-label*="Stop"]'
       ]
     };
   }
@@ -107,12 +142,20 @@ function getSelectorsForPlatform(url) {
   // Perplexity.ai
   if (urlLower.includes('perplexity.ai')) {
     return {
-      input: 'textarea[placeholder*="Ask"], textarea[placeholder*="Follow"], textarea.svelte',
+      input: [
+        '#ask-input',
+        'div[contenteditable="true"]#ask-input',
+        'div[contenteditable="true"][id="ask-input"]',
+        'div[contenteditable="true"][role="textbox"][data-lexical-editor="true"]',
+        'div[contenteditable="true"][role="textbox"]'
+      ].join(', '),
       submit: 'button[aria-label*="Submit"], button[type="submit"]',
       output: 'div.prose, div[class*="answer"], div[class*="result"]',
       stopButton: [
-        'button:has-text("Stop")',
-        'button[aria-label*="Stop"]'
+        'button[aria-label*="Stop"]',
+        'button[aria-label*="Cancel"]',
+        'button[data-testid*="stop"]',
+        '[role="button"][aria-label*="Stop"]'
       ]
     };
   }
@@ -146,6 +189,8 @@ ipcMain.handle('selector-picker-open', async (event, url) => {
 
     pickerWindow.loadURL(url);
 
+    let resolved = false;
+
     pickerWindow.webContents.on('did-finish-load', () => {
       // Inject selector picker UI and logic
       pickerWindow.webContents.executeJavaScript(`
@@ -169,31 +214,32 @@ ipcMain.handle('selector-picker-open', async (event, url) => {
 
           let currentElement = null;
 
-          // Generate CSS selector for element
+          function escAttr(v) { return String(v).replace(/"/g, '\\"'); }
+          function escId(v) { try { return CSS.escape(v); } catch(e) { return String(v).replace(/[^a-zA-Z0-9_-]/g, '\\$&'); } }
+          function escClass(v) { try { return CSS.escape(v); } catch(e) { return String(v).replace(/[^a-zA-Z0-9_-]/g, '\\$&'); } }
           function getSelector(el) {
-            if (el.id) return '#' + el.id;
-            if (el.className) {
-              const classes = el.className.split(' ').filter(c => c.trim());
-              if (classes.length) return el.tagName.toLowerCase() + '.' + classes.join('.');
-            }
-            if (el.name) return el.tagName.toLowerCase() + '[name="' + el.name + '"]';
-
-            // Fallback: use data attributes or nth-child
+            if (el.id) return '#' + escId(el.id);
+            const cl = Array.from(el.classList || []).filter(Boolean).map(escClass);
+            if (cl.length) return el.tagName.toLowerCase() + '.' + cl.slice(0,3).join('.');
+            const dt = el.getAttribute('data-testid');
+            if (dt) return '[data-testid="' + escAttr(dt) + '"]';
+            const nm = el.getAttribute('name');
+            if (nm) return el.tagName.toLowerCase() + '[name="' + escAttr(nm) + '"]';
+            const al = el.getAttribute('aria-label');
+            if (al) return '[aria-label="' + escAttr(al) + '"]';
             let path = [];
-            while (el.parentElement) {
-              let selector = el.tagName.toLowerCase();
-              if (el.id) {
-                path.unshift('#' + el.id);
-                break;
-              }
-              const siblings = Array.from(el.parentElement.children);
-              const index = siblings.indexOf(el) + 1;
-              if (siblings.length > 1) {
-                selector += ':nth-child(' + index + ')';
-              }
-              path.unshift(selector);
-              el = el.parentElement;
-              if (path.length > 3) break;
+            let cur = el;
+            while (cur.parentElement) {
+              let sel = cur.tagName.toLowerCase();
+              if (cur.id) { path.unshift('#' + escId(cur.id)); break; }
+              const cl2 = Array.from(cur.classList || []).filter(Boolean).map(escClass);
+              if (cl2.length) sel += '.' + cl2.slice(0,2).join('.');
+              const siblings = Array.from(cur.parentElement.children);
+              const index = siblings.indexOf(cur) + 1;
+              if (siblings.length > 1) sel += ':nth-child(' + index + ')';
+              path.unshift(sel);
+              cur = cur.parentElement;
+              if (path.length > 4) break;
             }
             return path.join(' > ');
           }
@@ -216,8 +262,7 @@ ipcMain.handle('selector-picker-open', async (event, url) => {
             if (currentElement) {
               const selector = getSelector(currentElement);
               window.__selectorPickerResult = selector;
-              // Close window to trigger result
-              window.close();
+              try { console.log('PICKER:' + encodeURIComponent(selector)); } catch (e) {}
             }
           }, true);
 
@@ -231,24 +276,61 @@ ipcMain.handle('selector-picker-open', async (event, url) => {
         })();
       `);
     });
+    pickerWindow.webContents.on('dom-ready', () => {
+      pickerWindow.webContents.executeJavaScript(`
+        (function() {
+          if (window.__selectorPickerInjected) return;
+          window.__selectorPickerInjected = true;
+        })();
+      `);
+    });
 
-    // Listen for 'close' event (before destroyed) to capture result
-    pickerWindow.on('close', async (e) => {
-      // Prevent default close to read result first
-      e.preventDefault();
+    pickerWindow.webContents.on('console-message', (event, level, message) => {
+      if (resolved) return;
+      if (typeof message === 'string' && message.startsWith('PICKER:')) {
+        const selector = decodeURIComponent(message.slice('PICKER:'.length));
+        resolved = true;
+        if (!pickerWindow.isDestroyed()) pickerWindow.destroy();
+        resolve({ success: true, selector });
+      }
+    });
 
+    pickerWindow.on('page-title-updated', (event, title) => {
+      if (resolved) return;
+      if (typeof title === 'string' && title.startsWith('PICKER_RESULT:')) {
+        event.preventDefault();
+        const selector = decodeURIComponent(title.slice('PICKER_RESULT:'.length));
+        resolved = true;
+        if (!pickerWindow.isDestroyed()) pickerWindow.destroy();
+        resolve({ success: true, selector });
+      }
+    });
+
+    const timeout = setTimeout(async () => {
+      if (resolved) return;
       try {
-        // Read result before window is destroyed
         const result = await pickerWindow.webContents.executeJavaScript('window.__selectorPickerResult || null');
-        console.log('[Picker] Selected CSS:', result);
+        resolved = true;
+        if (!pickerWindow.isDestroyed()) pickerWindow.destroy();
+        resolve({ success: true, selector: result });
+      } catch (_) {
+        resolved = true;
+        if (!pickerWindow.isDestroyed()) pickerWindow.destroy();
+        resolve({ success: true, selector: null });
+      }
+    }, 30000);
 
-        // Now actually destroy the window
+    pickerWindow.on('close', async (e) => {
+      if (resolved) return;
+      e.preventDefault();
+      clearTimeout(timeout);
+      try {
+        const result = await pickerWindow.webContents.executeJavaScript('window.__selectorPickerResult || null');
+        resolved = true;
         pickerWindow.destroy();
-
-        // Resolve with the result
         resolve({ success: true, selector: result });
       } catch (err) {
-        console.error('[Picker] Error reading result:', err);
+        resolved = true;
         pickerWindow.destroy();
         resolve({ success: true, selector: null });
       }
@@ -349,9 +431,18 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
   // Track current worker
   currentWorkerWindow = workerWindow;
 
-  // Forward console logs từ worker window
-  workerWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
-    console.log(`[Worker Console] ${message}`);
+  workerWindow.webContents.on('console-message', (event, level, message) => {
+    const msg = String(message || '');
+    const suppress = [
+      'Third-party cookie will be blocked',
+      'Third-Party Cookie',
+      'Unrecognized feature: \'attribution-reporting\'',
+      'attribution-reporting'
+    ];
+    for (const s of suppress) {
+      if (msg.includes(s)) return;
+    }
+    console.log(`[Worker Console] ${msg}`);
   });
 
   // DevTools will NOT open automatically
@@ -533,56 +624,45 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
           console.log('Monitoring stop button to detect generation completion...');
           console.log('Using platform-specific stop button selectors:', stopButtonSels);
 
-          // Wait for stop button to appear (generation started)
-          let stopButton = null;
-          let generationStartAttempts = 0;
-          while (generationStartAttempts < 20) { // Max 10 seconds
-            await sleep(500);
-
-            // Try each platform-specific selector
+          const anyStopPresent = () => {
             for (const selector of stopButtonSels) {
-              const btn = document.querySelector(selector);
-              if (btn) {
-                stopButton = btn;
-                console.log('Found stop button with selector:', selector);
-                break;
-              }
+              const el = document.querySelector(selector);
+              if (el) return true;
             }
+            const btns = Array.from(document.querySelectorAll('button, [role="button"]'));
+            for (const b of btns) {
+              const label = (b.getAttribute('aria-label') || '').toLowerCase();
+              const txt = (b.innerText || b.textContent || '').toLowerCase();
+              if (label.includes('stop') || label.includes('cancel') || txt.includes('stop')) return true;
+            }
+            return false;
+          };
 
-            if (stopButton) {
-              console.log('Generation started (stop button appeared)');
+          let generationStarted = false;
+          for (let attempts = 0; attempts < 20; attempts++) {
+            await sleep(500);
+            if (anyStopPresent()) {
+              generationStarted = true;
+              console.log('Generation started (stop present)');
               break;
             }
-            generationStartAttempts++;
           }
 
-          if (generationStartAttempts >= 20) {
-            console.log('Warning: Stop button never appeared, using fallback timing...');
-            await sleep(10000); // Fallback: wait 10 seconds
+          if (!generationStarted) {
+            console.log('Warning: Stop not detected, using fallback timing...');
+            await sleep(10000);
           } else {
-            // Wait for stop button to disappear (generation complete)
-            let generationCompleteAttempts = 0;
-            while (generationCompleteAttempts < 120) { // Max 120 seconds (2 minutes)
+            for (let attempts = 0; attempts < 120; attempts++) {
               await sleep(1000);
-
-              // Check if the SAME stop button instance still exists in DOM
-              const stillInDOM = document.body.contains(stopButton);
-
-              if (!stillInDOM) {
-                console.log('Generation complete (stop button disappeared from DOM)');
-                // Wait a bit more to ensure output is fully rendered
+              const present = anyStopPresent();
+              if (!present) {
+                console.log('Generation complete (stop not present)');
                 await sleep(2000);
                 break;
               }
-
-              if (generationCompleteAttempts % 10 === 0) {
-                console.log('Still generating... attempt:', generationCompleteAttempts, 'Stop button still in DOM:', stillInDOM);
+              if (attempts % 10 === 0) {
+                console.log('Still generating... attempt:', attempts, 'Stop present:', present);
               }
-              generationCompleteAttempts++;
-            }
-
-            if (generationCompleteAttempts >= 120) {
-              console.log('Warning: Timeout waiting for generation to complete');
             }
           }
 

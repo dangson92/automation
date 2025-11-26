@@ -21,7 +21,7 @@
       "package.json"
     ],
     "win": {
-      "target": ["nsis", "portable"],
+      "target": ["portable"],
       "icon": "build/icon.ico"
     },
     "linux": {
