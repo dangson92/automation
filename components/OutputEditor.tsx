@@ -40,6 +40,9 @@ export const OutputEditor: React.FC<Props> = ({ initialHtml, onSave, onCancel })
     if (!useHtmlMode) {
       tinymce.init({
         selector: '#' + editorIdRef.current,
+        skin: false,
+        content_css: false,
+        license_key: 'gpl',
         plugins: 'advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table help',
         toolbar: 'undo redo | formatselect | bold italic underline | alignleft aligncenter alignright | bullist numlist | link image media table | removeformat | code fullscreen',
         toolbar_mode: 'wrap',
