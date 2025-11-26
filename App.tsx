@@ -480,11 +480,14 @@ const App: React.FC = () => {
       if (!currentItem) continue;
 
       updateItemStatus(id, { status: Status.RUNNING });
-      
+
       let startIndex = currentItem.currentStepIndex || 0;
-      let previousResult = startIndex > 0 && currentItem.results[startIndex - 1] 
-        ? currentItem.results[startIndex - 1].response 
+      let previousResult = startIndex > 0 && currentItem.results[startIndex - 1]
+        ? currentItem.results[startIndex - 1].response
         : "";
+
+      // Track results locally for template variable replacement
+      const localResults: StepResult[] = [...currentItem.results];
 
       try {
         for (let i = startIndex; i < config.steps.length; i++) {
@@ -493,16 +496,16 @@ const App: React.FC = () => {
           const step = config.steps[i];
           const stepUrl = step.url || automationConfig.defaultUrl;
           appendLog(id, `Đang chạy: ${step.name}...`);
-          
+
           // Replace template variables
           let promptToSend = step.template.replace(/\{\{input\}\}/g, currentItem.originalPrompt);
 
           // Replace {{prev}} with result from previous step
           promptToSend = promptToSend.replace(/\{\{prev\}\}/g, previousResult);
 
-          // Replace {{prev1}}, {{prev2}}, etc. with results from specific steps
+          // Replace {{prev1}}, {{prev2}}, etc. with results from specific steps using localResults
           for (let prevIdx = 0; prevIdx < i; prevIdx++) {
-            const prevResult = currentItem.results[prevIdx]?.response || '';
+            const prevResult = localResults[prevIdx]?.response || '';
             const prevVar = `{{prev${prevIdx + 1}}}`;
             promptToSend = promptToSend.replace(new RegExp(prevVar.replace(/[{}]/g, '\\$&'), 'g'), prevResult);
           }
@@ -554,7 +557,7 @@ const App: React.FC = () => {
           }
 
           previousResult = stepResponse;
-          
+
           const resultEntry: StepResult = {
             stepId: step.id,
             stepName: step.name,
@@ -563,6 +566,9 @@ const App: React.FC = () => {
             timestamp: Date.now(),
             url: stepUrl
           };
+
+          // Update local results array for next iteration's template variables
+          localResults[i] = resultEntry;
 
           setQueue(prev => prev.map(item => {
             if (item.id !== id) return item;
