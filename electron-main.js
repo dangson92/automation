@@ -465,6 +465,7 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
               const btn = document.querySelector(selector);
               if (btn) {
                 stopButton = btn;
+                console.log('Found stop button with selector:', selector);
                 break;
               }
             }
@@ -485,24 +486,18 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
             while (generationCompleteAttempts < 120) { // Max 120 seconds (2 minutes)
               await sleep(1000);
 
-              // Check if stop button still exists
-              let stillExists = false;
-              for (const selector of stopButtonSelectors) {
-                if (document.querySelector(selector)) {
-                  stillExists = true;
-                  break;
-                }
-              }
+              // Check if the SAME stop button instance still exists in DOM
+              const stillInDOM = document.body.contains(stopButton);
 
-              if (!stillExists) {
-                console.log('Generation complete (stop button disappeared)');
+              if (!stillInDOM) {
+                console.log('Generation complete (stop button disappeared from DOM)');
                 // Wait a bit more to ensure output is fully rendered
                 await sleep(2000);
                 break;
               }
 
               if (generationCompleteAttempts % 10 === 0) {
-                console.log('Still generating... attempt:', generationCompleteAttempts);
+                console.log('Still generating... attempt:', generationCompleteAttempts, 'Stop button still in DOM:', stillInDOM);
               }
               generationCompleteAttempts++;
             }
