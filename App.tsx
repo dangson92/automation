@@ -458,8 +458,21 @@ const App: React.FC = () => {
           const stepUrl = step.url || automationConfig.defaultUrl;
           appendLog(id, `Đang chạy: ${step.name}...`);
           
-          let promptToSend = step.template.replace('{{input}}', currentItem.originalPrompt);
-          promptToSend = promptToSend.replace('{{prev}}', previousResult);
+          // Replace template variables
+          let promptToSend = step.template.replace(/\{\{input\}\}/g, currentItem.originalPrompt);
+
+          // Replace {{prev}} with result from previous step
+          promptToSend = promptToSend.replace(/\{\{prev\}\}/g, previousResult);
+
+          // Replace {{prev1}}, {{prev2}}, etc. with results from specific steps
+          for (let prevIdx = 0; prevIdx < i; prevIdx++) {
+            const prevResult = currentItem.results[prevIdx]?.response || '';
+            const prevVar = `{{prev${prevIdx + 1}}}`;
+            promptToSend = promptToSend.replace(new RegExp(prevVar.replace(/[{}]/g, '\\$&'), 'g'), prevResult);
+          }
+
+          // Log the actual prompt being sent
+          appendLog(id, `Prompt gửi đi: ${promptToSend.substring(0, 100)}${promptToSend.length > 100 ? '...' : ''}`);
 
           let stepResponse = "";
 
@@ -841,16 +854,81 @@ const App: React.FC = () => {
                                    </div>
                                </div>
 
-                               <div className="relative mb-3">
+                               <div className="mb-3">
                                   <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Prompt Template</label>
-                                  <textarea 
+                                  <textarea
+                                     id={`template-${step.id}`}
                                      value={step.template}
                                      onChange={(e) => handleUpdateStep(step.id, 'template', e.target.value)}
-                                     className="w-full h-20 bg-white border border-slate-200 rounded-md p-2 text-xs font-mono resize-none focus:outline-none focus:border-indigo-500"
+                                     className="w-full min-h-[80px] bg-white border border-slate-200 rounded-md p-2 text-xs font-mono resize-y focus:outline-none focus:border-indigo-500"
+                                     placeholder="Nhập template... Click biến bên dưới để insert"
                                   />
-                                  <div className="absolute bottom-2 right-2 flex space-x-1">
-                                     <span className="text-[10px] bg-slate-100 px-1 rounded text-slate-500">{`{{input}}`}</span>
-                                     {index > 0 && <span className="text-[10px] bg-indigo-50 px-1 rounded text-indigo-600">{`{{prev}}`}</span>}
+                                  <div className="mt-2 flex flex-wrap gap-1">
+                                     <button
+                                       type="button"
+                                       onClick={() => {
+                                         const textarea = document.getElementById(`template-${step.id}`) as HTMLTextAreaElement;
+                                         if (textarea) {
+                                           const cursorPos = textarea.selectionStart;
+                                           const textBefore = step.template.substring(0, cursorPos);
+                                           const textAfter = step.template.substring(cursorPos);
+                                           handleUpdateStep(step.id, 'template', textBefore + '{{input}}' + textAfter);
+                                           setTimeout(() => {
+                                             textarea.focus();
+                                             textarea.setSelectionRange(cursorPos + 9, cursorPos + 9);
+                                           }, 0);
+                                         }
+                                       }}
+                                       className="text-[10px] bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded text-slate-700 font-mono cursor-pointer transition-colors"
+                                     >
+                                       {`{{input}}`}
+                                     </button>
+                                     {config.steps.slice(0, index).map((prevStep, prevIdx) => (
+                                       <button
+                                         key={prevStep.id}
+                                         type="button"
+                                         onClick={() => {
+                                           const textarea = document.getElementById(`template-${step.id}`) as HTMLTextAreaElement;
+                                           if (textarea) {
+                                             const cursorPos = textarea.selectionStart;
+                                             const textBefore = step.template.substring(0, cursorPos);
+                                             const textAfter = step.template.substring(cursorPos);
+                                             const varName = `{{prev${prevIdx + 1}}}`;
+                                             handleUpdateStep(step.id, 'template', textBefore + varName + textAfter);
+                                             setTimeout(() => {
+                                               textarea.focus();
+                                               textarea.setSelectionRange(cursorPos + varName.length, cursorPos + varName.length);
+                                             }, 0);
+                                           }
+                                         }}
+                                         className="text-[10px] bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded text-indigo-700 font-mono cursor-pointer transition-colors"
+                                         title={`Kết quả từ ${prevStep.name}`}
+                                       >
+                                         {`{{prev${prevIdx + 1}}}`}
+                                       </button>
+                                     ))}
+                                     {index > 0 && (
+                                       <button
+                                         type="button"
+                                         onClick={() => {
+                                           const textarea = document.getElementById(`template-${step.id}`) as HTMLTextAreaElement;
+                                           if (textarea) {
+                                             const cursorPos = textarea.selectionStart;
+                                             const textBefore = step.template.substring(0, cursorPos);
+                                             const textAfter = step.template.substring(cursorPos);
+                                             handleUpdateStep(step.id, 'template', textBefore + '{{prev}}' + textAfter);
+                                             setTimeout(() => {
+                                               textarea.focus();
+                                               textarea.setSelectionRange(cursorPos + 8, cursorPos + 8);
+                                             }, 0);
+                                           }
+                                         }}
+                                         className="text-[10px] bg-green-50 hover:bg-green-100 px-2 py-1 rounded text-green-700 font-mono cursor-pointer transition-colors"
+                                         title="Kết quả từ bước ngay trước"
+                                       >
+                                         {`{{prev}}`}
+                                       </button>
+                                     )}
                                   </div>
                                </div>
 
