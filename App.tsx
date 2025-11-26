@@ -75,7 +75,6 @@ const App: React.FC = () => {
   // UI State
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
-  const [helpTab, setHelpTab] = useState<'GUIDE' | 'INSTALL'>('GUIDE');
   const [expandedStepId, setExpandedStepId] = useState<string | null>(config.steps[0]?.id || null);
 
   // Refs
@@ -640,7 +639,9 @@ const App: React.FC = () => {
       })
     ].join("\n");
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // Add UTF-8 BOM for Vietnamese text support in Excel
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
@@ -662,66 +663,178 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen w-full bg-slate-100 overflow-hidden text-slate-800 font-sans">
       
-      {/* --- HELP / INSTALL MODAL --- */}
+      {/* --- HELP MODAL --- */}
       {showHelp && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
            <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full h-[85vh] flex flex-col overflow-hidden relative">
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                  <h2 className="text-xl font-bold text-slate-800 flex items-center">
                     <HelpCircle className="w-6 h-6 mr-2 text-indigo-600" />
-                    Trung tâm Trợ giúp & Cài đặt
+                    Hướng dẫn sử dụng
                  </h2>
                  <button onClick={() => setShowHelp(false)} className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all shadow-sm">
                     <X className="w-5 h-5" />
                  </button>
               </div>
 
-              <div className="flex flex-1 overflow-hidden">
-                <div className="w-64 bg-slate-50 border-r border-slate-200 p-4 space-y-2 flex-shrink-0">
-                   <button 
-                      onClick={() => setHelpTab('GUIDE')}
-                      className={`w-full text-left px-4 py-3 rounded-lg flex items-center space-x-3 transition-all ${helpTab === 'GUIDE' ? 'bg-white shadow-sm text-indigo-600 font-semibold ring-1 ring-indigo-100' : 'text-slate-600 hover:bg-slate-100'}`}
-                   >
-                      <FileText className="w-5 h-5" />
-                      <span>Hướng dẫn cơ bản</span>
-                   </button>
-                   <button 
-                      onClick={() => setHelpTab('INSTALL')}
-                      className={`w-full text-left px-4 py-3 rounded-lg flex items-center space-x-3 transition-all ${helpTab === 'INSTALL' ? 'bg-white shadow-sm text-indigo-600 font-semibold ring-1 ring-indigo-100' : 'text-slate-600 hover:bg-slate-100'}`}
-                   >
-                      <Monitor className="w-5 h-5" />
-                      <span>Cài đặt Desktop App</span>
-                   </button>
-                </div>
+              <div className="flex-1 overflow-y-auto p-8 bg-white custom-scrollbar">
+                <div className="space-y-8 max-w-4xl mx-auto">
+                  {/* Giới thiệu */}
+                  <section>
+                    <h3 className="text-2xl font-bold text-slate-800 mb-3 flex items-center">
+                      <Bot className="w-6 h-6 mr-2 text-indigo-600" />
+                      Automation AI - Công cụ tự động hóa với ChatGPT
+                    </h3>
+                    <p className="text-slate-600 leading-relaxed">
+                      Ứng dụng giúp bạn tự động hóa các tác vụ lặp đi lặp lại với AI. Bạn có thể tạo quy trình (workflow)
+                      với nhiều bước, mỗi bước gửi prompt tới ChatGPT và lấy kết quả để xử lý tiếp.
+                    </p>
+                  </section>
 
-                <div className="flex-1 overflow-y-auto p-8 bg-white custom-scrollbar">
-                   {helpTab === 'GUIDE' && (
-                      <div className="space-y-6">
-                         <div>
-                            <h3 className="text-lg font-bold text-slate-800 mb-2">Quy trình Tự động</h3>
-                            <p className="text-slate-600 text-sm mb-4">Kết nối chuỗi hành động: Bước 1 (Hỏi ChatGPT) {'->'} Bước 2 (Lấy kết quả đó Search Google).</p>
-                         </div>
-                      </div>
-                   )}
+                  {/* Bước 1: Cấu hình Workflow */}
+                  <section className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-6">
+                    <h4 className="text-lg font-bold text-blue-900 mb-3 flex items-center">
+                      <Settings className="w-5 h-5 mr-2" />
+                      1. Cấu hình Workflow
+                    </h4>
 
-                   {helpTab === 'INSTALL' && (
-                      <div className="space-y-6">
-                          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-6">
-                             <h3 className="text-lg font-bold text-blue-900 mb-2">Chạy dưới dạng Desktop App (Electron)</h3>
-                             <p className="text-sm text-blue-700 mb-4">Để có cửa sổ ứng dụng riêng biệt và khả năng điều khiển trình duyệt mạnh mẽ nhất.</p>
-                             
-                             <div className="space-y-4 bg-white p-4 rounded-lg border border-blue-100 font-mono text-xs shadow-sm">
-                                <div className="text-slate-500"># 1. Cài đặt Node.js nếu chưa có</div>
-                                <div className="text-slate-500"># 2. Tải toàn bộ code về và mở terminal tại thư mục đó</div>
-                                <div className="text-slate-500"># 3. Cài đặt thư viện:</div>
-                                <div className="font-bold text-slate-800">npm install electron electron-builder --save-dev</div>
-                                <div className="font-bold text-slate-800">npm install</div>
-                                <div className="text-slate-500 mt-2"># 4. Chạy ứng dụng:</div>
-                                <div className="font-bold text-indigo-600">npm start</div>
-                             </div>
-                          </div>
+                    <div className="space-y-4 text-sm">
+                      <div className="bg-white p-4 rounded-lg border border-blue-100">
+                        <p className="font-semibold text-slate-800 mb-2">📝 Thêm bước (Step)</p>
+                        <ul className="list-disc list-inside space-y-1 text-slate-600 ml-2">
+                          <li>Click nút <strong>"+ Thêm"</strong> để thêm bước mới</li>
+                          <li>Mỗi bước bao gồm: Tên, URL, Prompt template, và CSS selectors</li>
+                          <li>Có thể có nhiều bước, kết quả bước trước truyền cho bước sau</li>
+                        </ul>
                       </div>
-                   )}
+
+                      <div className="bg-white p-4 rounded-lg border border-blue-100">
+                        <p className="font-semibold text-slate-800 mb-2">🔗 Cấu hình URL và Selectors</p>
+                        <ul className="list-disc list-inside space-y-1 text-slate-600 ml-2">
+                          <li><strong>URL:</strong> Địa chỉ trang web (ví dụ: https://chatgpt.com/)</li>
+                          <li><strong>Input Selector:</strong> CSS selector của ô nhập text (ví dụ: #prompt-textarea)</li>
+                          <li><strong>Submit Selector:</strong> CSS selector của nút gửi (ví dụ: button[data-testid='send-button'])</li>
+                          <li><strong>Output Selector:</strong> CSS selector của kết quả (ví dụ: .markdown)</li>
+                          <li>Dùng nút <strong>"Pick"</strong> để chọn element trực quan (chỉ trong Desktop mode)</li>
+                        </ul>
+                      </div>
+
+                      <div className="bg-white p-4 rounded-lg border border-blue-100">
+                        <p className="font-semibold text-slate-800 mb-2">📄 Viết Prompt Template</p>
+                        <ul className="list-disc list-inside space-y-1 text-slate-600 ml-2">
+                          <li><strong>{`{{input}}`}</strong> - Dữ liệu gốc từ ô nhập batch</li>
+                          <li><strong>{`{{prev}}`}</strong> - Kết quả từ bước ngay trước đó</li>
+                          <li><strong>{`{{prev1}}, {{prev2}}`}</strong> - Kết quả từ bước 1, bước 2 cụ thể</li>
+                          <li>Click vào các biến để tự động insert vào prompt</li>
+                          <li>Ví dụ: "Phân tích {`{{input}}`} và đưa ra đề xuất: {`{{prev}}`}"</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Bước 2: Đăng nhập */}
+                  <section className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-100 rounded-xl p-6">
+                    <h4 className="text-lg font-bold text-green-900 mb-3 flex items-center">
+                      <UserCog className="w-5 h-5 mr-2" />
+                      2. Đăng nhập ChatGPT (Desktop mode)
+                    </h4>
+                    <div className="space-y-2 text-sm text-green-800">
+                      <p>Trước khi chạy automation, bạn cần đăng nhập ChatGPT để tránh bị gián đoạn:</p>
+                      <ul className="list-disc list-inside space-y-1 ml-2">
+                        <li>Click nút <strong>"Mở cửa sổ đăng nhập"</strong> trong phần "Quản lý Đăng nhập"</li>
+                        <li>Đăng nhập vào ChatGPT trong cửa sổ mới</li>
+                        <li>Session sẽ được lưu tự động, chỉ cần đăng nhập 1 lần</li>
+                        <li>Đóng cửa sổ sau khi đăng nhập xong</li>
+                      </ul>
+                    </div>
+                  </section>
+
+                  {/* Bước 3: Nhập dữ liệu */}
+                  <section className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100 rounded-xl p-6">
+                    <h4 className="text-lg font-bold text-amber-900 mb-3 flex items-center">
+                      <FileText className="w-5 h-5 mr-2" />
+                      3. Nhập dữ liệu batch
+                    </h4>
+                    <div className="space-y-2 text-sm text-amber-800">
+                      <p>Nhập nhiều dòng dữ liệu vào ô <strong>"Dữ liệu đầu vào (Batch Input)"</strong>:</p>
+                      <ul className="list-disc list-inside space-y-1 ml-2">
+                        <li>Mỗi dòng = 1 item trong queue</li>
+                        <li>Ví dụ: Nhập 10 tiêu đề blog, mỗi dòng 1 tiêu đề</li>
+                        <li>Click <strong>"Thêm vào Queue"</strong> để thêm vào danh sách</li>
+                        <li>Queue sẽ được lưu tự động, không mất khi tắt app</li>
+                      </ul>
+                    </div>
+                  </section>
+
+                  {/* Bước 4: Chạy automation */}
+                  <section className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-100 rounded-xl p-6">
+                    <h4 className="text-lg font-bold text-purple-900 mb-3 flex items-center">
+                      <Zap className="w-5 h-5 mr-2" />
+                      4. Chạy Automation
+                    </h4>
+                    <div className="space-y-2 text-sm text-purple-800">
+                      <ul className="list-disc list-inside space-y-1 ml-2">
+                        <li>Chọn chế độ <strong>"Headless"</strong> để chạy ngầm (ẩn browser) hoặc tắt để xem trực tiếp</li>
+                        <li>Click nút <strong>"Chạy ngay"</strong> để bắt đầu</li>
+                        <li>Hệ thống sẽ tự động:
+                          <ul className="list-circle list-inside ml-6 mt-1">
+                            <li>Mở ChatGPT</li>
+                            <li>Điền prompt (có thay thế biến {`{{input}}, {{prev}}`})</li>
+                            <li>Đợi AI generate xong (theo dõi stop button)</li>
+                            <li>Lấy kết quả và chuyển bước tiếp theo</li>
+                          </ul>
+                        </li>
+                        <li>Bấm nút <strong>"Dừng lại"</strong> để ngừng automation bất kỳ lúc nào</li>
+                      </ul>
+                    </div>
+                  </section>
+
+                  {/* Bước 5: Xem kết quả */}
+                  <section className="bg-gradient-to-br from-teal-50 to-cyan-50 border border-teal-100 rounded-xl p-6">
+                    <h4 className="text-lg font-bold text-teal-900 mb-3 flex items-center">
+                      <Eye className="w-5 h-5 mr-2" />
+                      5. Xem kết quả và Export
+                    </h4>
+                    <div className="space-y-2 text-sm text-teal-800">
+                      <ul className="list-disc list-inside space-y-1 ml-2">
+                        <li>Kết quả hiện trong bảng, mỗi cột là 1 bước trong workflow</li>
+                        <li>Click vào dòng để xem chi tiết (prompt, response, logs)</li>
+                        <li>Trạng thái: <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">COMPLETED</span>, <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs">QUEUED</span>, <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs">FAILED</span></li>
+                        <li>Click nút <strong>"Excel"</strong> để export toàn bộ kết quả ra file CSV (hỗ trợ tiếng Việt)</li>
+                        <li>Tick checkbox để chọn nhiều items, sau đó xóa hàng loạt</li>
+                      </ul>
+                    </div>
+                  </section>
+
+                  {/* Lưu Workflow */}
+                  <section className="bg-gradient-to-br from-slate-50 to-gray-50 border border-slate-200 rounded-xl p-6">
+                    <h4 className="text-lg font-bold text-slate-800 mb-3 flex items-center">
+                      <Save className="w-5 h-5 mr-2" />
+                      6. Lưu và tái sử dụng Workflow
+                    </h4>
+                    <div className="space-y-2 text-sm text-slate-700">
+                      <ul className="list-disc list-inside space-y-1 ml-2">
+                        <li>Click <strong>"Lưu Workflow Mới"</strong> để lưu cấu hình hiện tại</li>
+                        <li>Đặt tên cho workflow (ví dụ: "Viết blog 3 bước", "Dịch và tóm tắt")</li>
+                        <li>Workflow đã lưu hiện trong danh sách <strong>"Workflows đã lưu"</strong></li>
+                        <li>Click vào workflow để load lại cấu hình</li>
+                        <li>Nếu đang chỉnh sửa workflow đã lưu, click <strong>"Cập nhật"</strong> thay vì tạo mới</li>
+                        <li>Click nút <strong>"Sao chép"</strong> để tạo bản copy từ workflow hiện tại</li>
+                      </ul>
+                    </div>
+                  </section>
+
+                  {/* Tips */}
+                  <section className="border-l-4 border-indigo-500 bg-indigo-50 p-4 rounded">
+                    <h4 className="font-bold text-indigo-900 mb-2">💡 Mẹo hay</h4>
+                    <ul className="list-disc list-inside space-y-1 text-sm text-indigo-800 ml-2">
+                      <li>Dùng chế độ <strong>"Headless OFF"</strong> lần đầu để kiểm tra selectors có đúng không</li>
+                      <li>Kiểm tra logs ở panel bên phải để debug khi có lỗi</li>
+                      <li>Queue được lưu tự động vào file, không lo mất dữ liệu khi tắt app</li>
+                      <li>Có thể chạy lại những item FAILED bằng cách xóa các item COMPLETED</li>
+                      <li>Prompt template có thể kéo to/nhỏ bằng cách kéo góc textarea</li>
+                    </ul>
+                  </section>
                 </div>
               </div>
            </div>
@@ -742,7 +855,7 @@ const App: React.FC = () => {
                 </span>
               </div>
            </div>
-           <button onClick={() => { setShowHelp(true); setHelpTab('INSTALL'); }} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors">
+           <button onClick={() => setShowHelp(true)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors">
               <HelpCircle className="w-5 h-5" />
            </button>
         </div>
@@ -770,8 +883,8 @@ const App: React.FC = () => {
              <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-800 flex items-start">
                 <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0" />
                 <div>
-                    Đang ở chế độ <strong>Giả lập Web</strong>. Để chạy thật, vui lòng cài đặt theo hướng dẫn Desktop App.
-                    <button onClick={() => { setShowHelp(true); setHelpTab('INSTALL'); }} className="block mt-1 underline font-bold">Xem hướng dẫn</button>
+                    Đang ở chế độ <strong>Giả lập Web</strong>. Chạy ứng dụng Desktop để có đầy đủ tính năng automation.
+                    <button onClick={() => setShowHelp(true)} className="block mt-1 underline font-bold">Xem hướng dẫn</button>
                 </div>
              </div>
           )}
