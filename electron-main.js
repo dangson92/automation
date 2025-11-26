@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 let mainWindow;
 
@@ -33,6 +34,43 @@ app.on('window-all-closed', () => {
 // --- GLOBAL WORKER WINDOW TRACKING ---
 let currentWorkerWindow = null;
 let loginWindow = null;
+
+// --- DATA PERSISTENCE ---
+const getQueueFilePath = () => {
+  const userDataPath = app.getPath('userData');
+  return path.join(userDataPath, 'queue.json');
+};
+
+// Save queue to file
+ipcMain.handle('queue-save', async (event, queueData) => {
+  try {
+    const filePath = getQueueFilePath();
+    fs.writeFileSync(filePath, JSON.stringify(queueData, null, 2), 'utf-8');
+    console.log('Queue saved to:', filePath);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to save queue:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Load queue from file
+ipcMain.handle('queue-load', async () => {
+  try {
+    const filePath = getQueueFilePath();
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, 'utf-8');
+      console.log('Queue loaded from:', filePath);
+      return { success: true, data: JSON.parse(data) };
+    } else {
+      console.log('No queue file found, starting fresh');
+      return { success: true, data: [] };
+    }
+  } catch (error) {
+    console.error('Failed to load queue:', error);
+    return { success: false, error: error.message, data: [] };
+  }
+});
 
 // --- AUTOMATION HANDLERS ---
 
