@@ -51,6 +51,7 @@ const isElectron = () => {
 
 const App: React.FC = () => {
   // --- State ---
+  // Queue will be loaded from file (Electron) or localStorage (web) in useEffect
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -87,17 +88,53 @@ const App: React.FC = () => {
 
   // --- Init ---
   useEffect(() => {
-    if (isElectron()) {
-      setMode('ELECTRON');
-    } else if (isExtension()) {
-      setMode('EXTENSION');
-    }
+    const initApp = async () => {
+      if (isElectron()) {
+        setMode('ELECTRON');
+        // Load queue from file in Electron mode
+        try {
+          const result = await window.electronAPI.loadQueue();
+          if (result.success && result.data) {
+            setQueue(result.data);
+          }
+        } catch (err) {
+          console.error('Failed to load queue from file:', err);
+        }
+      } else {
+        // Load from localStorage for web/extension mode
+        const saved = localStorage.getItem('promptflow_queue');
+        if (saved) {
+          try {
+            setQueue(JSON.parse(saved));
+          } catch (err) {
+            console.error('Failed to load queue from localStorage:', err);
+          }
+        }
+
+        if (isExtension()) {
+          setMode('EXTENSION');
+        }
+      }
+    };
+    initApp();
   }, []);
 
   // --- Persistence ---
   useEffect(() => {
     localStorage.setItem('promptflow_agents', JSON.stringify(savedAgents));
   }, [savedAgents]);
+
+  useEffect(() => {
+    if (mode === 'ELECTRON' && window.electronAPI) {
+      // Save to file in Electron mode
+      window.electronAPI.saveQueue(queue).catch(err => {
+        console.error('Failed to save queue to file:', err);
+      });
+    } else {
+      // Use localStorage for web/extension mode
+      localStorage.setItem('promptflow_queue', JSON.stringify(queue));
+    }
+  }, [queue, mode]);
 
   // --- Helpers ---
   const generateId = () => Math.random().toString(36).substring(2, 9);

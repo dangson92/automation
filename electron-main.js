@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 let mainWindow;
 
@@ -33,6 +34,43 @@ app.on('window-all-closed', () => {
 // --- GLOBAL WORKER WINDOW TRACKING ---
 let currentWorkerWindow = null;
 let loginWindow = null;
+
+// --- DATA PERSISTENCE ---
+const getQueueFilePath = () => {
+  const userDataPath = app.getPath('userData');
+  return path.join(userDataPath, 'queue.json');
+};
+
+// Save queue to file
+ipcMain.handle('queue-save', async (event, queueData) => {
+  try {
+    const filePath = getQueueFilePath();
+    fs.writeFileSync(filePath, JSON.stringify(queueData, null, 2), 'utf-8');
+    console.log('Queue saved to:', filePath);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to save queue:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Load queue from file
+ipcMain.handle('queue-load', async () => {
+  try {
+    const filePath = getQueueFilePath();
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, 'utf-8');
+      console.log('Queue loaded from:', filePath);
+      return { success: true, data: JSON.parse(data) };
+    } else {
+      console.log('No queue file found, starting fresh');
+      return { success: true, data: [] };
+    }
+  } catch (error) {
+    console.error('Failed to load queue:', error);
+    return { success: false, error: error.message, data: [] };
+  }
+});
 
 // --- AUTOMATION HANDLERS ---
 
@@ -403,46 +441,75 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
 
           console.log('Waiting for response...');
 
-          // 4. Wait for AI Generation to Complete by monitoring submit button presence
-          console.log('Monitoring submit button to detect generation completion...');
+          // 4. Wait for AI Generation to Complete by monitoring stop button
+          console.log('Monitoring stop button to detect generation completion...');
 
-          // Wait for submit button to disappear (replaced by stop button = generation started)
+          // Try common stop button selectors
+          const stopButtonSelectors = [
+            'button[aria-label*="Stop"]',
+            'button[aria-label*="stop"]',
+            'button[data-testid*="stop"]',
+            'button.stop-button',
+            'button[title*="Stop"]',
+            'button:has(svg):not([data-testid="send-button"])'
+          ];
+
+          // Wait for stop button to appear (generation started)
+          let stopButton = null;
           let generationStartAttempts = 0;
           while (generationStartAttempts < 20) { // Max 10 seconds
             await sleep(500);
-            const submitBtn = document.querySelector(submitSel);
-            if (!submitBtn) {
-              console.log('Generation started (submit button disappeared, replaced by stop button)');
+
+            // Try each selector
+            for (const selector of stopButtonSelectors) {
+              const btn = document.querySelector(selector);
+              if (btn) {
+                stopButton = btn;
+                break;
+              }
+            }
+
+            if (stopButton) {
+              console.log('Generation started (stop button appeared)');
               break;
             }
             generationStartAttempts++;
           }
 
           if (generationStartAttempts >= 20) {
-            console.log('Warning: Submit button never disappeared, continuing anyway...');
-          }
+            console.log('Warning: Stop button never appeared, using fallback timing...');
+            await sleep(10000); // Fallback: wait 10 seconds
+          } else {
+            // Wait for stop button to disappear (generation complete)
+            let generationCompleteAttempts = 0;
+            while (generationCompleteAttempts < 120) { // Max 120 seconds (2 minutes)
+              await sleep(1000);
 
-          // Now wait for submit button to reappear (generation complete)
-          let generationCompleteAttempts = 0;
-          while (generationCompleteAttempts < 120) { // Max 120 seconds (2 minutes)
-            await sleep(1000);
-            const submitBtn = document.querySelector(submitSel);
+              // Check if stop button still exists
+              let stillExists = false;
+              for (const selector of stopButtonSelectors) {
+                if (document.querySelector(selector)) {
+                  stillExists = true;
+                  break;
+                }
+              }
 
-            if (submitBtn) {
-              console.log('Generation complete (submit button reappeared)');
-              // Wait a bit more to ensure output is fully rendered
-              await sleep(2000);
-              break;
+              if (!stillExists) {
+                console.log('Generation complete (stop button disappeared)');
+                // Wait a bit more to ensure output is fully rendered
+                await sleep(2000);
+                break;
+              }
+
+              if (generationCompleteAttempts % 10 === 0) {
+                console.log('Still generating... attempt:', generationCompleteAttempts);
+              }
+              generationCompleteAttempts++;
             }
 
-            if (generationCompleteAttempts % 10 === 0) {
-              console.log('Still generating... attempt:', generationCompleteAttempts);
+            if (generationCompleteAttempts >= 120) {
+              console.log('Warning: Timeout waiting for generation to complete');
             }
-            generationCompleteAttempts++;
-          }
-
-          if (generationCompleteAttempts >= 120) {
-            console.log('Warning: Timeout waiting for generation to complete');
           }
 
           // 5. Capture the output
