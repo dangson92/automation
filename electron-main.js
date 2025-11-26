@@ -403,33 +403,33 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
 
           console.log('Waiting for response...');
 
-          // 4. Wait for AI Generation to Complete by monitoring submit button state
+          // 4. Wait for AI Generation to Complete by monitoring submit button presence
           console.log('Monitoring submit button to detect generation completion...');
 
-          // Wait for submit button to become disabled (generation started)
+          // Wait for submit button to disappear (replaced by stop button = generation started)
           let generationStartAttempts = 0;
           while (generationStartAttempts < 20) { // Max 10 seconds
             await sleep(500);
             const submitBtn = document.querySelector(submitSel);
-            if (submitBtn && submitBtn.disabled) {
-              console.log('Generation started (submit button disabled)');
+            if (!submitBtn) {
+              console.log('Generation started (submit button disappeared, replaced by stop button)');
               break;
             }
             generationStartAttempts++;
           }
 
           if (generationStartAttempts >= 20) {
-            console.log('Warning: Submit button never disabled, continuing anyway...');
+            console.log('Warning: Submit button never disappeared, continuing anyway...');
           }
 
-          // Now wait for submit button to re-enable (generation complete)
+          // Now wait for submit button to reappear (generation complete)
           let generationCompleteAttempts = 0;
           while (generationCompleteAttempts < 120) { // Max 120 seconds (2 minutes)
             await sleep(1000);
             const submitBtn = document.querySelector(submitSel);
 
-            if (submitBtn && !submitBtn.disabled) {
-              console.log('Generation complete (submit button re-enabled)');
+            if (submitBtn) {
+              console.log('Generation complete (submit button reappeared)');
               // Wait a bit more to ensure output is fully rendered
               await sleep(2000);
               break;
