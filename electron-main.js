@@ -403,46 +403,75 @@ ipcMain.handle('automation-run', async (event, { url, selectors, prompt, headles
 
           console.log('Waiting for response...');
 
-          // 4. Wait for AI Generation to Complete by monitoring submit button presence
-          console.log('Monitoring submit button to detect generation completion...');
+          // 4. Wait for AI Generation to Complete by monitoring stop button
+          console.log('Monitoring stop button to detect generation completion...');
 
-          // Wait for submit button to disappear (replaced by stop button = generation started)
+          // Try common stop button selectors
+          const stopButtonSelectors = [
+            'button[aria-label*="Stop"]',
+            'button[aria-label*="stop"]',
+            'button[data-testid*="stop"]',
+            'button.stop-button',
+            'button[title*="Stop"]',
+            'button:has(svg):not([data-testid="send-button"])'
+          ];
+
+          // Wait for stop button to appear (generation started)
+          let stopButton = null;
           let generationStartAttempts = 0;
           while (generationStartAttempts < 20) { // Max 10 seconds
             await sleep(500);
-            const submitBtn = document.querySelector(submitSel);
-            if (!submitBtn) {
-              console.log('Generation started (submit button disappeared, replaced by stop button)');
+
+            // Try each selector
+            for (const selector of stopButtonSelectors) {
+              const btn = document.querySelector(selector);
+              if (btn) {
+                stopButton = btn;
+                break;
+              }
+            }
+
+            if (stopButton) {
+              console.log('Generation started (stop button appeared)');
               break;
             }
             generationStartAttempts++;
           }
 
           if (generationStartAttempts >= 20) {
-            console.log('Warning: Submit button never disappeared, continuing anyway...');
-          }
+            console.log('Warning: Stop button never appeared, using fallback timing...');
+            await sleep(10000); // Fallback: wait 10 seconds
+          } else {
+            // Wait for stop button to disappear (generation complete)
+            let generationCompleteAttempts = 0;
+            while (generationCompleteAttempts < 120) { // Max 120 seconds (2 minutes)
+              await sleep(1000);
 
-          // Now wait for submit button to reappear (generation complete)
-          let generationCompleteAttempts = 0;
-          while (generationCompleteAttempts < 120) { // Max 120 seconds (2 minutes)
-            await sleep(1000);
-            const submitBtn = document.querySelector(submitSel);
+              // Check if stop button still exists
+              let stillExists = false;
+              for (const selector of stopButtonSelectors) {
+                if (document.querySelector(selector)) {
+                  stillExists = true;
+                  break;
+                }
+              }
 
-            if (submitBtn) {
-              console.log('Generation complete (submit button reappeared)');
-              // Wait a bit more to ensure output is fully rendered
-              await sleep(2000);
-              break;
+              if (!stillExists) {
+                console.log('Generation complete (stop button disappeared)');
+                // Wait a bit more to ensure output is fully rendered
+                await sleep(2000);
+                break;
+              }
+
+              if (generationCompleteAttempts % 10 === 0) {
+                console.log('Still generating... attempt:', generationCompleteAttempts);
+              }
+              generationCompleteAttempts++;
             }
 
-            if (generationCompleteAttempts % 10 === 0) {
-              console.log('Still generating... attempt:', generationCompleteAttempts);
+            if (generationCompleteAttempts >= 120) {
+              console.log('Warning: Timeout waiting for generation to complete');
             }
-            generationCompleteAttempts++;
-          }
-
-          if (generationCompleteAttempts >= 120) {
-            console.log('Warning: Timeout waiting for generation to complete');
           }
 
           // 5. Capture the output
