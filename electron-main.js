@@ -676,10 +676,11 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
           }
 
           const lastEl = outEls[outEls.length - 1];
-          const finalHtml = lastEl.innerHTML || '';
+          // Use innerText to get plain text without HTML tags
+          const finalText = lastEl.innerText || lastEl.textContent || '';
 
-          console.log('Output captured. Length:', finalHtml.length, 'Preview:', finalHtml.substring(0, 100) + '...');
-          return { success: true, text: finalHtml };
+          console.log('Output captured. Length:', finalText.length, 'Preview:', finalText.substring(0, 100) + '...');
+          return { success: true, text: finalText };
 
         } catch (scriptError) {
           console.error('Script execution error:', scriptError);
