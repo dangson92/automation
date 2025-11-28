@@ -134,15 +134,38 @@ ipcMain.handle('selector-picker-open', async (event, url) => {
   console.log('Opening selector picker for:', url);
 
   return new Promise((resolve) => {
+    let resolved = false; // Track if promise has been resolved
+
     const pickerWindow = new BrowserWindow({
       width: 1400,
       height: 900,
       webPreferences: {
+        preload: path.join(__dirname, 'electron-picker-preload.js'),
         partition: 'persist:automation',
         nodeIntegration: false,
         contextIsolation: true
       }
     });
+
+    // Listen for result from picker window via IPC
+    const resultHandler = (evt, selector) => {
+      if (resolved) return; // Already resolved
+      resolved = true;
+
+      console.log('[Picker] Received CSS selector:', selector);
+      // Clean up listener
+      ipcMain.removeListener('picker-result', resultHandler);
+
+      // Close window
+      if (pickerWindow && !pickerWindow.isDestroyed()) {
+        pickerWindow.destroy();
+      }
+
+      // Resolve promise
+      resolve({ success: true, selector: selector });
+    };
+
+    ipcMain.on('picker-result', resultHandler);
 
     pickerWindow.loadURL(url);
 
@@ -172,7 +195,7 @@ ipcMain.handle('selector-picker-open', async (event, url) => {
           // Generate CSS selector for element
           function getSelector(el) {
             if (el.id) return '#' + el.id;
-            if (el.className) {
+            if (el.className && typeof el.className === 'string') {
               const classes = el.className.split(' ').filter(c => c.trim());
               if (classes.length) return el.tagName.toLowerCase() + '.' + classes.join('.');
             }
@@ -213,45 +236,34 @@ ipcMain.handle('selector-picker-open', async (event, url) => {
           document.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
-            if (currentElement) {
+            if (currentElement && window.pickerAPI) {
               const selector = getSelector(currentElement);
-              window.__selectorPickerResult = selector;
-              // Close window to trigger result
-              window.close();
+              console.log('[Picker] Sending selector:', selector);
+              // Send result via IPC
+              window.pickerAPI.sendResult(selector);
             }
           }, true);
 
           // ESC to cancel
           document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') {
-              window.__selectorPickerResult = null;
-              window.close();
+            if (e.key === 'Escape' && window.pickerAPI) {
+              window.pickerAPI.sendResult(null);
             }
           });
         })();
       `);
     });
 
-    // Listen for 'close' event (before destroyed) to capture result
-    pickerWindow.on('close', async (e) => {
-      // Prevent default close to read result first
-      e.preventDefault();
+    // Handle window close without result
+    pickerWindow.on('closed', () => {
+      if (resolved) return; // Already resolved
+      resolved = true;
 
-      try {
-        // Read result before window is destroyed
-        const result = await pickerWindow.webContents.executeJavaScript('window.__selectorPickerResult || null');
-        console.log('[Picker] Selected CSS:', result);
+      // Clean up listener if window closed without selecting
+      ipcMain.removeListener('picker-result', resultHandler);
 
-        // Now actually destroy the window
-        pickerWindow.destroy();
-
-        // Resolve with the result
-        resolve({ success: true, selector: result });
-      } catch (err) {
-        console.error('[Picker] Error reading result:', err);
-        pickerWindow.destroy();
-        resolve({ success: true, selector: null });
-      }
+      // Resolve with null
+      resolve({ success: true, selector: null });
     });
   });
 });
