@@ -117,7 +117,7 @@ export const OutputEditor: React.FC<Props> = ({ initialHtml, onSave, onCancel })
         </div>
         <div className="px-4 py-3 border-t border-slate-200 flex justify-end space-x-2">
           <button onClick={onCancel} className="px-3 py-1.5 text-xs rounded bg-slate-100 text-slate-700">Hủy</button>
-          <button onClick={handleSave} disabled={!(!useHtmlMode || ready)} className="px-3 py-1.5 text-xs rounded bg-indigo-600 text-white disabled:opacity-50">Lưu</button>
+          <button onClick={handleSave} disabled={!useHtmlMode && !ready} className="px-3 py-1.5 text-xs rounded bg-indigo-600 text-white disabled:opacity-50">Lưu</button>
         </div>
       </div>
     </div>

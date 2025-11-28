@@ -361,17 +361,25 @@ const App: React.FC = () => {
     const step = config.steps[stepIndex];
     if (!step) return;
 
-    const stepUrl = step.url || automationConfig.defaultUrl;
-    let previousResult = '';
-    if (stepIndex > 0 && item.results[stepIndex - 1]) {
-      previousResult = item.results[stepIndex - 1].response || '';
+    const stepRes = item.results.find(r => r.stepId === step.id);
+    if (!stepRes || !stepRes.url) {
+      alert('Không tìm thấy URL lịch sử của bước này. Không thể chạy lại.');
+      return;
     }
-    const localResults: StepResult[] = [...item.results];
+    const stepUrl = stepRes.url;
+    let previousResult = '';
+    if (stepIndex > 0) {
+      const prevStep = config.steps[stepIndex - 1];
+      const prevRes = item.results.find(r => r.stepId === prevStep.id);
+      previousResult = prevRes?.response || '';
+    }
 
     let promptToSend = step.template.replace(/\{\{input\}\}/g, item.originalPrompt);
     promptToSend = promptToSend.replace(/\{\{prev\}\}/g, previousResult);
     for (let prevIdx = 0; prevIdx < stepIndex; prevIdx++) {
-      const prevResult = localResults[prevIdx]?.response || '';
+      const prevStep = config.steps[prevIdx];
+      const prevResAny = item.results.find(r => r.stepId === prevStep.id);
+      const prevResult = prevResAny?.response || '';
       const prevVar = `{{prev${prevIdx + 1}}}`;
       const rx = new RegExp(prevVar.replace(/[{}]/g, '\\$&'), 'g');
       promptToSend = promptToSend.replace(rx, prevResult);
