@@ -72,6 +72,8 @@ declare global {
       pickSelector: (url: string) => Promise<{ success?: boolean; selector?: string | null }>;
       saveQueue: (queueData: QueueItem[]) => Promise<{ success: boolean; error?: string }>;
       loadQueue: () => Promise<{ success: boolean; data: QueueItem[]; error?: string }>;
+      exportSettings: (settings: { config: AppConfig; automationConfig: AutomationConfig }) => Promise<{ success: boolean; path?: string; error?: string }>;
+      importSettings: () => Promise<{ success: boolean; data?: { config: AppConfig; automationConfig: AutomationConfig }; error?: string }>;
     };
   }
 }
