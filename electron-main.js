@@ -706,19 +706,44 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
             // Remove all UI controls and buttons that are not part of content
             clone.querySelectorAll('button, svg.lucide, [aria-label="Copy"], [class*="copy"], div.sticky, div[class*="bg-token"], [class*="prose-btn"]').forEach(el => el.remove());
 
-            // For ChatGPT code blocks: keep only <code> content inside <pre>
+            // Check if the entire content is wrapped in a single <pre><code> block with HTML code
+            // This happens when ChatGPT outputs HTML as code with syntax highlighting
+            const children = Array.from(clone.children);
+            if (children.length === 1 && children[0].tagName === 'PRE') {
+              const pre = children[0];
+              const code = pre.querySelector('code');
+              if (code) {
+                const codeClass = code.className || '';
+                // Check if it's HTML/XML code block (language-html, language-xml, etc.)
+                if (codeClass.includes('language-html') || codeClass.includes('language-xml') ||
+                    codeClass.includes('lang-html') || codeClass.includes('lang-xml')) {
+                  // Extract plain text from syntax-highlighted code
+                  // textContent will strip all the <span> tags used for highlighting
+                  console.log('Detected HTML code block, extracting plain HTML from syntax highlighting');
+                  return code.textContent || code.innerText || '';
+                }
+              }
+            }
+
+            // For regular ChatGPT code blocks in content: keep only <code> content inside <pre>
             clone.querySelectorAll('pre').forEach((pre) => {
               const code = pre.querySelector('code');
               if (code) {
-                pre.innerHTML = code.innerHTML;
+                const codeClass = code.className || '';
+                // If it's a code language block, keep the pre wrapper but clean the content
+                if (codeClass.includes('language-') || codeClass.includes('hljs')) {
+                  pre.innerHTML = '<code>' + (code.textContent || code.innerText || '') + '</code>';
+                } else {
+                  pre.innerHTML = code.innerHTML;
+                }
               }
             });
 
             // Check if there's a single wrapper div inside that contains all the actual content
             // This is common in ChatGPT responses where markdown is wrapped in an extra div
-            const children = Array.from(clone.children);
-            if (children.length === 1 && children[0].tagName === 'DIV') {
-              const onlyChild = children[0];
+            const currentChildren = Array.from(clone.children);
+            if (currentChildren.length === 1 && currentChildren[0].tagName === 'DIV') {
+              const onlyChild = currentChildren[0];
               // Check if this div is just a wrapper (no meaningful classes/styles or only generic ones)
               const classes = onlyChild.className || '';
               const isGenericWrapper = !classes || classes.match(/^(prose|markdown|content|result|output|message)$/i);
