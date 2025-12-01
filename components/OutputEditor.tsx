@@ -87,7 +87,16 @@ export const OutputEditor: React.FC<Props> = ({ initialHtml, onSave, onCancel })
 
   const switchToRich = () => {
     const ed = tinymce.get(editorIdRef.current);
-    if (ed) ed.setContent(htmlText || '');
+    if (ed) {
+      let content = htmlText || '';
+      const tmp = document.createElement('div');
+      tmp.innerHTML = content;
+      const codeEl = tmp.querySelector('pre code') as HTMLElement | null;
+      if (codeEl) {
+        content = codeEl.textContent || codeEl.innerText || codeEl.innerHTML || content;
+      }
+      ed.setContent(content);
+    }
     setUseHtmlMode(false);
   };
 

@@ -66,7 +66,7 @@ export interface SavedAgent {
 declare global {
   interface Window {
     electronAPI?: {
-      runAutomation: (data: { url: string; selectors: any; useCustomSelectors: boolean; prompt: string; headless: boolean }) => Promise<{ success?: boolean; text?: string; error?: string }>;
+      runAutomation: (data: { url: string; selectors: any; useCustomSelectors: boolean; prompt: string; headless: boolean }) => Promise<{ success?: boolean; text?: string; url?: string; error?: string }>;
       stopAutomation: () => Promise<{ success?: boolean; message?: string }>;
       openLoginWindow: (url: string) => Promise<{ success?: boolean }>;
       pickSelector: (url: string) => Promise<{ success?: boolean; selector?: string | null }>;

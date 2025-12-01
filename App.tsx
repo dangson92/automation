@@ -37,7 +37,7 @@ const DEFAULT_AUTOMATION: AutomationConfig = {
   defaultUrl: "https://chatgpt.com/",
   inputSelector: "#prompt-textarea",
   submitSelector: "button[data-testid='send-button']",
-  outputSelector: ".markdown",
+  outputSelector: "div[data-message-author-role='assistant'] .markdown, .markdown",
 };
 
 // Check if running as Chrome Extension
@@ -366,7 +366,7 @@ const App: React.FC = () => {
       alert('Không tìm thấy URL lịch sử của bước này. Không thể chạy lại.');
       return;
     }
-    const stepUrl = stepRes.url;
+    let stepUrl = stepRes.url;
     let previousResult = '';
     if (stepIndex > 0) {
       const prevStep = config.steps[stepIndex - 1];
@@ -405,6 +405,7 @@ const App: React.FC = () => {
         return;
       }
       const newResponse = res.text || '';
+      stepUrl = res.url || stepUrl;
       setQueue(prev => prev.map(q => {
         if (q.id !== itemId) return q;
         const existingIndex = (q.results || []).findIndex(r => r.stepId === step.id);
@@ -578,7 +579,7 @@ const App: React.FC = () => {
   };
 
   // --- EXTENSION EXECUTION LOGIC ---
-  const runExtensionStep = async (step: WorkflowStep, prompt: string, appendLog: (msg: string) => void): Promise<string> => {
+  const runExtensionStep = async (step: WorkflowStep, prompt: string, appendLog: (msg: string) => void): Promise<{ text: string; url: string }> => {
     return new Promise((resolve, reject) => {
       if (!chrome.tabs || !chrome.scripting) {
         reject(new Error("Chrome Extension APIs not available"));
@@ -648,18 +649,37 @@ const App: React.FC = () => {
                             attempts++;
                             const outEls = document.querySelectorAll(sOut);
                             if (outEls.length > 0 && attempts > 3) {
-                                const lastEl = outEls[outEls.length - 1] as HTMLElement;
-                                if (lastEl.innerHTML.length > 5) {
+                                let targetEl = outEls[outEls.length - 1] as HTMLElement;
+                                const urlLower = (window.location.href || '').toLowerCase();
+                                if (urlLower.includes('chatgpt.com') || urlLower.includes('chat.openai.com')) {
+                                   const inner = targetEl.querySelector('div[data-message-author-role="assistant"] .markdown, .markdown') as HTMLElement | null;
+                                   if (inner) targetEl = inner;
+                                }
+                                const sanitizeInner = (root: HTMLElement) => {
+                                  const clone = root.cloneNode(true) as HTMLElement;
+                                  clone.querySelectorAll('pre').forEach((pre) => {
+                                    const code = pre.querySelector('code');
+                                    if (code) {
+                                      pre.innerHTML = (code as HTMLElement).innerHTML;
+                                    } else {
+                                      (pre as HTMLElement).querySelectorAll('[aria-label="Copy"], button, svg, div.sticky, div[class*="bg-token"]').forEach(el => el.remove());
+                                    }
+                                  });
+                                  return clone.innerHTML || '';
+                                };
+                                const innerHtml = sanitizeInner(targetEl);
+                                if (innerHtml.length > 5) {
                                     clearInterval(interval);
-                                    resolveScript({ success: true, text: lastEl.innerHTML });
+                                    resolveScript({ success: true, text: innerHtml, url: window.location.href });
                                 }
                             }
                             if (attempts >= maxAttempts) {
                                 clearInterval(interval);
-                                const lastEl = outEls[outEls.length - 1] as HTMLElement;
+                                let lastEl = outEls[outEls.length - 1] as HTMLElement;
                                 resolveScript({ 
                                     success: true, 
-                                    text: lastEl ? lastEl.innerHTML : "Timeout: Không tìm thấy kết quả" 
+                                    text: lastEl ? lastEl.innerHTML : "Timeout: Không tìm thấy kết quả",
+                                    url: window.location.href
                                 });
                             }
                         }, 1500);
@@ -674,7 +694,7 @@ const App: React.FC = () => {
             }
             const result = injectionResults[0].result as any;
             if (result.error) reject(new Error(result.error));
-            else resolve(result.text);
+            else resolve({ text: result.text, url: result.url || step.url || '' });
          });
       };
     });
@@ -716,20 +736,45 @@ const App: React.FC = () => {
           if (stopRef.current) break;
 
           const step = config.steps[i];
-          const stepUrl = step.url || automationConfig.defaultUrl;
+          let stepUrl = step.url || automationConfig.defaultUrl;
           appendLog(id, `Đang chạy: ${step.name}...`);
 
-          // Replace template variables
           let promptToSend = step.template.replace(/\{\{input\}\}/g, currentItem.originalPrompt);
 
-          // Replace {{prev}} with result from previous step
           promptToSend = promptToSend.replace(/\{\{prev\}\}/g, previousResult);
 
-          // Replace {{prev1}}, {{prev2}}, etc. with results from specific steps using localResults
           for (let prevIdx = 0; prevIdx < i; prevIdx++) {
             const prevResult = localResults[prevIdx]?.response || '';
             const prevVar = `{{prev${prevIdx + 1}}}`;
             promptToSend = promptToSend.replace(new RegExp(prevVar.replace(/[{}]/g, '\\$&'), 'g'), prevResult);
+          }
+
+          const urlVarMatches = Array.from((step.url || '').matchAll(/\{\{url_prev(\d*)\}\}/g));
+          if (urlVarMatches.length > 0) {
+            const m = urlVarMatches[0];
+            const idxStr = m[1];
+            let targetIndex = typeof idxStr === 'string' && idxStr.length > 0 ? parseInt(idxStr, 10) - 1 : i - 1;
+            if (targetIndex < 0) targetIndex = 0;
+            const targetStep = config.steps[targetIndex];
+            const targetRes = currentItem.results.find(r => r.stepId === targetStep.id) || localResults[targetIndex];
+            const targetUrl = targetRes?.url || '';
+            if (!targetUrl) {
+              throw new Error('Không tìm thấy URL lịch sử phù hợp để sử dụng cho bước này');
+            }
+            // Nếu URL field chứa nhiều biến, thay thế tất cả biến bằng URL tương ứng
+            let resolvedUrl = step.url || '';
+            resolvedUrl = resolvedUrl.replace(/\{\{url_prev\}\}/g, i > 0 ? (currentItem.results.find(r => r.stepId === config.steps[i - 1].id)?.url || localResults[i - 1]?.url || '') : '');
+            for (let prevIdx = 0; prevIdx < i; prevIdx++) {
+              const prevVar = `{{url_prev${prevIdx + 1}}}`;
+              const prevStep = config.steps[prevIdx];
+              const prevRes = currentItem.results.find(r => r.stepId === prevStep.id) || localResults[prevIdx];
+              const prevUrl = prevRes?.url || '';
+              resolvedUrl = resolvedUrl.replace(new RegExp(prevVar.replace(/[{}]/g, '\\$&'), 'g'), prevUrl);
+            }
+            stepUrl = resolvedUrl || targetUrl;
+            if (!stepUrl) {
+              throw new Error('Không thể xác định URL từ biến đã cung cấp trong bước này');
+            }
           }
 
           // Log the actual prompt being sent
@@ -757,12 +802,16 @@ const App: React.FC = () => {
              
              if (result.error) throw new Error(result.error);
              stepResponse = result.text || "";
+             // Use the actual URL after generation if provided
+             stepUrl = result.url || stepUrl;
              appendLog(id, `[DESKTOP] Nhận kết quả: ${stepResponse.substring(0, 30)}...`);
 
           } else if (mode === 'EXTENSION') {
              // --- EXTENSION MODE ---
              try {
-                stepResponse = await runExtensionStep(step, promptToSend, (msg) => appendLog(id, msg));
+                const extRes = await runExtensionStep(step, promptToSend, (msg) => appendLog(id, msg));
+                stepResponse = extRes.text || "";
+                stepUrl = extRes.url || stepUrl;
                 appendLog(id, `[EXT] Kết quả nhận được: ${stepResponse.substring(0, 50)}...`);
              } catch (e: any) {
                  appendLog(id, `[EXT ERROR] ${e.message}`);
@@ -1323,18 +1372,68 @@ const App: React.FC = () => {
                                   />
                                </div>
                                
-                               <div className="mb-3">
-                                   <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">URL</label>
-                                   <div className="flex items-center space-x-2 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 focus-within:ring-1 focus-within:ring-indigo-500">
-                                      <LinkIcon className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                                      <input 
-                                         value={step.url || ''}
-                                         onChange={(e) => handleUpdateStep(step.id, 'url', e.target.value)}
-                                         className="w-full text-xs bg-transparent border-none p-0 focus:ring-0 text-slate-600 placeholder-slate-400"
-                                         placeholder="https://..."
-                                      />
+                                   <div className="mb-3">
+                                      <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">URL</label>
+                                      <div className="flex items-center space-x-2 bg-slate-50 border border-slate-200 rounded px-2 py-1.5 focus-within:ring-1 focus-within:ring-indigo-500">
+                                         <LinkIcon className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                                         <input 
+                                             value={step.url || ''}
+                                             onChange={(e) => handleUpdateStep(step.id, 'url', e.target.value)}
+                                             className="w-full text-xs bg-transparent border-none p-0 focus:ring-0 text-slate-600 placeholder-slate-400"
+                                             placeholder="https://..."
+                                             id={`url-${step.id}`}
+                                         />
+                                      </div>
+                                      <div className="mt-2 flex flex-wrap gap-1">
+                                        {index > 0 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const input = document.getElementById(`url-${step.id}`) as HTMLInputElement;
+                                              const token = '{{url_prev}}';
+                                              if (input) {
+                                                const cursorPos = input.selectionStart || (step.url?.length || 0);
+                                                const text = step.url || '';
+                                                const before = text.substring(0, cursorPos);
+                                                const after = text.substring(cursorPos);
+                                                handleUpdateStep(step.id, 'url', before + token + after);
+                                                setTimeout(() => { input.focus(); input.setSelectionRange(cursorPos + token.length, cursorPos + token.length); }, 0);
+                                              } else {
+                                                handleUpdateStep(step.id, 'url', token);
+                                              }
+                                            }}
+                                            className="text-[10px] bg-green-50 hover:bg-green-100 px-2 py-1 rounded text-green-700 font-mono cursor-pointer transition-colors"
+                                            title="URL từ bước ngay trước"
+                                          >
+                                            {`{{url_prev}}`}
+                                          </button>
+                                        )}
+                                        {config.steps.slice(0, index).map((prevStep, prevIdx) => (
+                                          <button
+                                            key={`urlvar-${prevStep.id}`}
+                                            type="button"
+                                            onClick={() => {
+                                              const input = document.getElementById(`url-${step.id}`) as HTMLInputElement;
+                                              const token = `{{url_prev${prevIdx + 1}}}`;
+                                              if (input) {
+                                                const cursorPos = input.selectionStart || (step.url?.length || 0);
+                                                const text = step.url || '';
+                                                const before = text.substring(0, cursorPos);
+                                                const after = text.substring(cursorPos);
+                                                handleUpdateStep(step.id, 'url', before + token + after);
+                                                setTimeout(() => { input.focus(); input.setSelectionRange(cursorPos + token.length, cursorPos + token.length); }, 0);
+                                              } else {
+                                                handleUpdateStep(step.id, 'url', token);
+                                              }
+                                            }}
+                                            className="text-[10px] bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded text-indigo-700 font-mono cursor-pointer transition-colors"
+                                            title={`URL từ ${prevStep.name}`}
+                                          >
+                                            {`{{url_prev${prevIdx + 1}}}`}
+                                          </button>
+                                        ))}
+                                      </div>
                                    </div>
-                               </div>
 
                                <div className="mb-3">
                                   <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Prompt Template</label>

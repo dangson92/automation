@@ -112,7 +112,7 @@ function getSelectorsForPlatform(url) {
     return {
       input: '#prompt-textarea',
       submit: 'button[data-testid="send-button"]',
-      output: '.markdown',
+      output: 'div[data-message-author-role="assistant"] .markdown, .markdown',
       stopButton: [
         'button[aria-label*="Stop"]',
         'button[data-testid*="stop"]'
@@ -675,12 +675,32 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
             return { error: 'Không tìm thấy output với selector: ' + outputSel };
           }
 
-          const lastEl = outEls[outEls.length - 1];
-          // Use innerText to get plain text without HTML tags
-          const finalText = lastEl.innerText || lastEl.textContent || '';
+          let targetEl = outEls[outEls.length - 1];
+          const urlLower = (window.location.href || '').toLowerCase();
+          if (urlLower.includes('chatgpt.com') || urlLower.includes('chat.openai.com')) {
+            const inner = targetEl.querySelector('div[data-message-author-role="assistant"] .markdown, .markdown');
+            if (inner) targetEl = inner;
+          }
+          const sanitizeInner = (root) => {
+            const clone = root.cloneNode(true);
+            // For ChatGPT code blocks: keep only <code> content inside <pre>
+            clone.querySelectorAll('pre').forEach((pre) => {
+              const code = pre.querySelector('code');
+              if (code) {
+                pre.innerHTML = code.innerHTML;
+              } else {
+                // Remove common UI controls inside pre
+                pre.querySelectorAll('[aria-label="Copy"], button, svg, div.sticky, div[class*="bg-token"]').forEach(el => el.remove());
+              }
+            });
+            return clone.innerHTML || '';
+          };
 
-          console.log('Output captured. Length:', finalText.length, 'Preview:', finalText.substring(0, 100) + '...');
-          return { success: true, text: finalText };
+          const finalHtml = sanitizeInner(targetEl);
+          const currentUrl = window.location.href;
+
+          console.log('Output captured. Length:', finalHtml.length, 'Preview:', finalHtml.substring(0, 100) + '...');
+          return { success: true, text: finalHtml, url: currentUrl };
 
         } catch (scriptError) {
           console.error('Script execution error:', scriptError);
