@@ -88,14 +88,9 @@ export const OutputEditor: React.FC<Props> = ({ initialHtml, onSave, onCancel })
   const switchToRich = () => {
     const ed = tinymce.get(editorIdRef.current);
     if (ed) {
-      let content = htmlText || '';
-      const tmp = document.createElement('div');
-      tmp.innerHTML = content;
-      const codeEl = tmp.querySelector('pre code') as HTMLElement | null;
-      if (codeEl) {
-        content = codeEl.textContent || codeEl.innerText || codeEl.innerHTML || content;
-      }
-      ed.setContent(content);
+      // Simply set the HTML content directly to TinyMCE
+      // TinyMCE will render the HTML properly
+      ed.setContent(htmlText || '');
     }
     setUseHtmlMode(false);
   };

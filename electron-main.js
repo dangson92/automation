@@ -702,16 +702,33 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
           }
           const sanitizeInner = (root) => {
             const clone = root.cloneNode(true);
+
+            // Remove all UI controls and buttons that are not part of content
+            clone.querySelectorAll('button, svg.lucide, [aria-label="Copy"], [class*="copy"], div.sticky, div[class*="bg-token"], [class*="prose-btn"]').forEach(el => el.remove());
+
             // For ChatGPT code blocks: keep only <code> content inside <pre>
             clone.querySelectorAll('pre').forEach((pre) => {
               const code = pre.querySelector('code');
               if (code) {
                 pre.innerHTML = code.innerHTML;
-              } else {
-                // Remove common UI controls inside pre
-                pre.querySelectorAll('[aria-label="Copy"], button, svg, div.sticky, div[class*="bg-token"]').forEach(el => el.remove());
               }
             });
+
+            // Check if there's a single wrapper div inside that contains all the actual content
+            // This is common in ChatGPT responses where markdown is wrapped in an extra div
+            const children = Array.from(clone.children);
+            if (children.length === 1 && children[0].tagName === 'DIV') {
+              const onlyChild = children[0];
+              // Check if this div is just a wrapper (no meaningful classes/styles or only generic ones)
+              const classes = onlyChild.className || '';
+              const isGenericWrapper = !classes || classes.match(/^(prose|markdown|content|result|output|message)$/i);
+
+              if (isGenericWrapper) {
+                // Return the content inside the wrapper div
+                return onlyChild.innerHTML || '';
+              }
+            }
+
             return clone.innerHTML || '';
           };
 
