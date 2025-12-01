@@ -668,18 +668,37 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
 
           // 5. Capture the output
           console.log('Capturing output...');
-          const outEls = document.querySelectorAll(outputSel);
-
-          if (outEls.length === 0) {
-            console.error('No output elements found with selector:', outputSel);
-            return { error: 'Không tìm thấy output với selector: ' + outputSel };
-          }
-
-          let targetEl = outEls[outEls.length - 1];
           const urlLower = (window.location.href || '').toLowerCase();
+
+          // For ChatGPT: specifically target the markdown content of the last assistant message
+          let targetEl;
           if (urlLower.includes('chatgpt.com') || urlLower.includes('chat.openai.com')) {
-            const inner = targetEl.querySelector('div[data-message-author-role="assistant"] .markdown, .markdown');
-            if (inner) targetEl = inner;
+            // Find the last assistant message container
+            const assistantMessages = document.querySelectorAll('div[data-message-author-role="assistant"]');
+            if (assistantMessages.length === 0) {
+              console.error('No assistant messages found');
+              return { error: 'Không tìm thấy tin nhắn trả lời từ ChatGPT' };
+            }
+
+            const lastAssistantMsg = assistantMessages[assistantMessages.length - 1];
+            // Find the markdown content inside it
+            const markdownEl = lastAssistantMsg.querySelector('.markdown');
+
+            if (!markdownEl) {
+              console.error('No markdown element found in assistant message');
+              return { error: 'Không tìm thấy nội dung markdown trong tin nhắn' };
+            }
+
+            targetEl = markdownEl;
+            console.log('Using ChatGPT markdown element');
+          } else {
+            // For other platforms, use the original logic
+            const outEls = document.querySelectorAll(outputSel);
+            if (outEls.length === 0) {
+              console.error('No output elements found with selector:', outputSel);
+              return { error: 'Không tìm thấy output với selector: ' + outputSel };
+            }
+            targetEl = outEls[outEls.length - 1];
           }
           const sanitizeInner = (root) => {
             const clone = root.cloneNode(true);
