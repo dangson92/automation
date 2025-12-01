@@ -652,22 +652,33 @@ const App: React.FC = () => {
                                 let targetEl = outEls[outEls.length - 1] as HTMLElement;
                                 const urlLower = (window.location.href || '').toLowerCase();
                                 if (urlLower.includes('chatgpt.com') || urlLower.includes('chat.openai.com')) {
-                                   const inner = targetEl.querySelector('div[data-message-author-role="assistant"] .markdown, .markdown') as HTMLElement | null;
-                                   if (inner) targetEl = inner;
+                                   // Prefer the markdown of the last assistant message
+                                   const assistantMessages = document.querySelectorAll('div[data-message-author-role="assistant"]');
+                                   if (assistantMessages.length > 0) {
+                                     const lastAssistantMsg = assistantMessages[assistantMessages.length - 1] as HTMLElement;
+                                     const markdownEl = lastAssistantMsg.querySelector('.markdown') as HTMLElement | null;
+                                     if (markdownEl) targetEl = markdownEl;
+                                   } else {
+                                     const inner = targetEl.querySelector('div[data-message-author-role="assistant"] .markdown, .markdown') as HTMLElement | null;
+                                     if (inner) targetEl = inner;
+                                   }
                                 }
-                                const sanitizeInner = (root: HTMLElement) => {
-                                  const clone = root.cloneNode(true) as HTMLElement;
-                                  clone.querySelectorAll('pre').forEach((pre) => {
-                                    const code = pre.querySelector('code');
-                                    if (code) {
-                                      pre.innerHTML = (code as HTMLElement).innerHTML;
-                                    } else {
-                                      (pre as HTMLElement).querySelectorAll('[aria-label="Copy"], button, svg, div.sticky, div[class*="bg-token"]').forEach(el => el.remove());
+                                const extractContent = (root: HTMLElement) => {
+                                  const codeEl = root.querySelector('pre code') as HTMLElement | null;
+                                  if (codeEl) {
+                                    const cls = codeEl.className || '';
+                                    if (cls.includes('language-html') || cls.includes('language-xml') || cls.includes('lang-html') || cls.includes('lang-xml')) {
+                                      return codeEl.textContent || codeEl.innerText || '';
                                     }
-                                  });
-                                  return clone.innerHTML || '';
+                                  }
+                                  const clone = root.cloneNode(true) as HTMLElement;
+                                  clone.querySelectorAll('[aria-label="Copy"], button, svg, div.sticky, div[class*="bg-token"], [class*="prose-btn"]').forEach(el => el.remove());
+                                  const html = clone.innerHTML || '';
+                                  if (html && html.trim().length > 0) return html;
+                                  const text = root.innerText || root.textContent || '';
+                                  return text;
                                 };
-                                const innerHtml = sanitizeInner(targetEl);
+                                const innerHtml = extractContent(targetEl);
                                 if (innerHtml.length > 5) {
                                     clearInterval(interval);
                                     resolveScript({ success: true, text: innerHtml, url: window.location.href });
