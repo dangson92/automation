@@ -2272,9 +2272,9 @@ const App: React.FC = () => {
                      </th>
                      <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-12 sticky left-10 bg-slate-100 z-20">#</th>
                      <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-[140px] min-w-[140px] sticky left-[88px] bg-slate-100 z-20 whitespace-nowrap">Trạng thái</th>
-                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-64 max-w-64">Input Gốc</th>
+                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 min-w-[200px] w-64">Input Gốc</th>
                      {config.steps.map(step => (
-                        <th key={step.id} className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-80 max-w-80">
+                        <th key={step.id} className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 min-w-[250px] w-80">
                            <div className="flex items-center space-x-1">
                               <span>{step.name}</span>
                            </div>
@@ -2309,8 +2309,8 @@ const App: React.FC = () => {
                         <td className="p-3 sticky left-[88px] bg-white z-10 whitespace-nowrap cursor-pointer" onClick={() => setSelectedItemId(item.id)}>
                            <StatusBadge status={item.status} />
                         </td>
-                        <td className="p-3 text-sm text-slate-800 font-medium w-64 max-w-64 align-top cursor-pointer" onClick={() => setSelectedItemId(item.id)}>
-                           <div className="break-words">{item.originalPrompt}</div>
+                        <td className="p-3 text-sm text-slate-800 font-medium min-w-[200px] w-64 align-top cursor-pointer" onClick={() => setSelectedItemId(item.id)}>
+                           <div className="break-words whitespace-normal">{item.originalPrompt}</div>
                         </td>
 
                         {config.steps.map((step, sIdx) => {
@@ -2320,7 +2320,7 @@ const App: React.FC = () => {
                            return (
                               <td
                                  key={step.id}
-                                 className="p-3 text-sm text-slate-600 align-top border-l border-slate-50 w-80 max-w-80 cursor-pointer hover:bg-indigo-50/80 transition-colors"
+                                 className="p-3 text-sm text-slate-600 align-top border-l border-slate-50 min-w-[250px] w-80 cursor-pointer hover:bg-indigo-50/80 transition-colors"
                                  onClick={() => {
                                    setSelectedItemId(item.id);
                                    if (result) {
