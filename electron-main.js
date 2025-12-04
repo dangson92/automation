@@ -980,40 +980,95 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless }) =>
 
           await sleep(2000);
 
-          // 7. Extract image URLs
-          console.log('Extracting image URLs...');
+          // 7. Extract full-size image URLs by clicking each image
+          console.log('Extracting full-size image URLs...');
           const imageUrls = [];
 
-          // Try different selectors for images
-          const imageSets = [
-            document.querySelectorAll('img[src*="http"]'),
-            document.querySelectorAll('img[data-src*="http"]'),
-            document.querySelectorAll('[style*="background-image"]')
-          ];
+          // Find all image containers in the Images tab
+          const imageContainers = Array.from(document.querySelectorAll('img[src*="http"]'))
+            .filter(img => {
+              const src = img.src || '';
+              return src.startsWith('http') &&
+                     !src.includes('gravatar') &&
+                     !src.includes('icon') &&
+                     !src.includes('logo');
+            });
 
-          for (const imgSet of imageSets) {
-            for (const img of imgSet) {
-              let url = null;
+          console.log('Found', imageContainers.length, 'potential images');
 
-              if (img.tagName === 'IMG') {
-                url = img.src || img.getAttribute('data-src');
-              } else {
-                const style = img.style.backgroundImage || '';
-                const match = style.match(/url\\(['"]?([^'"\\)]+)['"]?\\)/);
-                if (match) url = match[1];
-              }
+          // Click on each image to get full-size URL
+          for (let i = 0; i < Math.min(imageContainers.length, 20); i++) {
+            try {
+              const imgElement = imageContainers[i];
 
-              if (url && url.startsWith('http') && !url.includes('gravatar') && !url.includes('icon')) {
-                if (!imageUrls.includes(url)) {
-                  imageUrls.push(url);
-                  if (imageUrls.length >= 20) break;
+              // Click on the image or its parent container
+              const clickTarget = imgElement.closest('a, button, [role="button"]') || imgElement;
+              clickTarget.click();
+
+              console.log('Clicked image', i + 1);
+              await sleep(800); // Wait for modal/preview to open
+
+              // Try to find full-size image in modal/preview
+              let fullSizeUrl = null;
+
+              // Method 1: Look for larger image in modal
+              const modalImages = document.querySelectorAll('img[src*="http"]');
+              for (const modalImg of modalImages) {
+                const src = modalImg.src || '';
+                // Look for images that are likely full-size (no thumb/small in URL)
+                if (src.startsWith('http') &&
+                    !src.includes('gravatar') &&
+                    !src.includes('icon') &&
+                    !src.includes('logo') &&
+                    modalImg.naturalWidth > 400) { // Check if it's a larger image
+                  fullSizeUrl = src;
+                  break;
                 }
               }
+
+              // Method 2: Check for srcset attribute
+              if (!fullSizeUrl) {
+                for (const modalImg of modalImages) {
+                  const srcset = modalImg.getAttribute('srcset');
+                  if (srcset) {
+                    // Parse srcset and get the largest image
+                    const sources = srcset.split(',').map(s => s.trim().split(' ')[0]);
+                    if (sources.length > 0) {
+                      fullSizeUrl = sources[sources.length - 1]; // Get last (usually largest)
+                    }
+                  }
+                }
+              }
+
+              // Method 3: Fallback to original src if no better option
+              if (!fullSizeUrl) {
+                fullSizeUrl = imgElement.src;
+              }
+
+              if (fullSizeUrl && !imageUrls.includes(fullSizeUrl)) {
+                imageUrls.push(fullSizeUrl);
+                console.log('Extracted full-size URL:', fullSizeUrl.substring(0, 80) + '...');
+              }
+
+              // Close modal/preview (press Escape)
+              const escEvent = new KeyboardEvent('keydown', {
+                bubbles: true,
+                cancelable: true,
+                keyCode: 27,
+                which: 27,
+                key: 'Escape',
+                code: 'Escape'
+              });
+              document.dispatchEvent(escEvent);
+              await sleep(300);
+
+            } catch (err) {
+              console.log('Error processing image', i + 1, ':', err.message);
+              continue;
             }
-            if (imageUrls.length >= 20) break;
           }
 
-          console.log('Extracted', imageUrls.length, 'image URLs');
+          console.log('Extracted', imageUrls.length, 'full-size image URLs');
 
           return {
             success: true,
