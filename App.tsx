@@ -919,8 +919,8 @@ const App: React.FC = () => {
       const randomIndex = Math.floor(Math.random() * images.length);
       const selectedImage = images[randomIndex];
 
-      // Replace shortcode with image tag
-      const imgTag = `<img src="${selectedImage}" alt="${shortcode}" class="auto-generated-image" style="max-width: 100%; height: auto; margin: 1em 0;" />`;
+      // Replace shortcode with centered image tag
+      const imgTag = `<div style="text-align: center; margin: 1.5em 0;"><img src="${selectedImage}" alt="${shortcode}" class="auto-generated-image" style="max-width: 100%; height: auto; display: inline-block;" /></div>`;
       updatedResponse = updatedResponse.replace(shortcode, imgTag);
 
       // Save image data
@@ -2169,9 +2169,9 @@ const App: React.FC = () => {
                      </th>
                      <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-12 sticky left-10 bg-slate-100 z-20">#</th>
                      <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-[140px] min-w-[140px] sticky left-[88px] bg-slate-100 z-20 whitespace-nowrap">Trạng thái</th>
-                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 min-w-[200px] max-w-xs">Input Gốc</th>
+                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-64">Input Gốc</th>
                      {config.steps.map(step => (
-                        <th key={step.id} className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 min-w-[250px]">
+                        <th key={step.id} className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-80">
                            <div className="flex items-center space-x-1">
                               <span>{step.name}</span>
                            </div>
@@ -2206,16 +2206,20 @@ const App: React.FC = () => {
                         <td className="p-3 sticky left-[88px] bg-inherit z-10 whitespace-nowrap cursor-pointer" onClick={() => setSelectedItemId(item.id)}>
                            <StatusBadge status={item.status} />
                         </td>
-                        <td className="p-3 text-sm text-slate-800 font-medium truncate max-w-xs align-top cursor-pointer" onClick={() => setSelectedItemId(item.id)}>
+                        <td className="p-3 text-sm text-slate-800 font-medium truncate w-64 align-top cursor-pointer" onClick={() => setSelectedItemId(item.id)}>
                            {item.originalPrompt}
                         </td>
-                        
+
                         {config.steps.map((step, sIdx) => {
                            const result = item.results.find(r => r.stepId === step.id);
                            const isCurrent = item.currentStepIndex === sIdx && item.status === Status.RUNNING;
-                           
+
                            return (
-                              <td key={step.id} className="p-3 text-sm text-slate-600 align-top border-l border-slate-50">
+                              <td
+                                 key={step.id}
+                                 className="p-3 text-sm text-slate-600 align-top border-l border-slate-50 w-80 cursor-pointer hover:bg-indigo-50/80 transition-colors"
+                                 onClick={() => setSelectedItemId(item.id)}
+                              >
                                  {result ? (
                                     <div className="max-h-20 overflow-hidden text-ellipsis line-clamp-3" title={result.response}>
                                        {result.response}
@@ -2424,10 +2428,20 @@ const App: React.FC = () => {
                             src={imgUrl}
                             alt={`Image ${idx + 1}`}
                             className="w-full h-full object-cover"
+                            onLoad={(e) => {
+                              const img = e.target as HTMLImageElement;
+                              const sizeTag = img.nextElementSibling as HTMLElement;
+                              if (sizeTag && sizeTag.classList.contains('image-size-tag')) {
+                                sizeTag.textContent = `${img.naturalWidth} × ${img.naturalHeight}px`;
+                              }
+                            }}
                             onError={(e) => {
                               (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x300?text=Error+Loading';
                             }}
                           />
+                          <div className="image-size-tag absolute top-2 left-2 bg-black/70 text-white text-[10px] px-2 py-1 rounded font-mono">
+                            ...
+                          </div>
                         </div>
                         {idx === imageGallery.currentSelected && (
                           <div className="absolute top-2 right-2 bg-indigo-600 text-white rounded-full p-1">
