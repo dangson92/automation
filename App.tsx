@@ -97,6 +97,7 @@ const App: React.FC = () => {
   const [rerunStepId, setRerunStepId] = useState<string | null>(null);
   const [imageGallery, setImageGallery] = useState<{ itemId: string; stepId: string; imageIndex: number; images: string[]; currentSelected: number } | null>(null);
   const [scrollToStepId, setScrollToStepId] = useState<string | null>(null);
+  const [isDetailPanelClosing, setIsDetailPanelClosing] = useState(false);
 
   // --- Init ---
   useEffect(() => {
@@ -541,6 +542,14 @@ const App: React.FC = () => {
         };
       })
     }));
+  };
+
+  const handleCloseDetailPanel = () => {
+    setIsDetailPanelClosing(true);
+    setTimeout(() => {
+      setSelectedItemId(null);
+      setIsDetailPanelClosing(false);
+    }, 200); // Match animation duration
   };
 
   const handleSelectImage = (newImageUrl: string, newIndex: number) => {
@@ -2266,13 +2275,15 @@ const App: React.FC = () => {
 
           {/* Detail Panel */}
           {selectedItem && (
-             <div className="w-[500px] border-l border-slate-200 bg-white flex flex-col shadow-xl z-30 animate-in slide-in-from-right duration-200">
+             <div className={`w-[500px] border-l border-slate-200 bg-white flex flex-col shadow-xl z-30 transition-all duration-200 ease-in-out ${
+               isDetailPanelClosing ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100 animate-in slide-in-from-right'
+             }`}>
                 <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                    <div>
                       <h3 className="font-semibold text-slate-700">Chi tiết</h3>
                       <p className="text-xs text-slate-500">ID: {selectedItem.id}</p>
                    </div>
-                   <button onClick={() => setSelectedItemId(null)} className="text-slate-400 hover:text-slate-700">
+                   <button onClick={handleCloseDetailPanel} className="text-slate-400 hover:text-slate-700">
                       <X className="w-5 h-5" />
                    </button>
                 </div>
