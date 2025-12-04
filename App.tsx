@@ -193,7 +193,7 @@ const App: React.FC = () => {
   // Handle ESC key to close detail panel
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && selectedItem) {
+      if (event.key === 'Escape' && selectedItemId) {
         handleCloseDetailPanel();
       }
     };
@@ -202,7 +202,7 @@ const App: React.FC = () => {
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [selectedItem]);
+  }, [selectedItemId]);
 
   // --- Helpers ---
   const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -2392,7 +2392,15 @@ const App: React.FC = () => {
                   <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                      <div>
                         <h3 className="font-semibold text-slate-700">Chi tiết</h3>
-                        <p className="text-xs text-slate-500">ID: {selectedItem.id}</p>
+                        <p className="text-xs text-slate-500 mb-1">ID: {selectedItem.id}</p>
+                        <button
+                          onClick={() => handleResetItem(selectedItem.id)}
+                          className="flex items-center space-x-1 text-xs text-blue-600 hover:text-blue-700 transition-colors"
+                          title="Reset về trạng thái chờ"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          <span>Reset</span>
+                        </button>
                      </div>
                      <button onClick={handleCloseDetailPanel} className="text-slate-400 hover:text-slate-700">
                         <X className="w-5 h-5" />
@@ -2400,18 +2408,6 @@ const App: React.FC = () => {
                   </div>
 
                   <div className="flex-1 overflow-y-auto p-0 custom-scrollbar bg-slate-50/50">
-                     {/* Reset Button */}
-                     <div className="p-4 bg-white border-b border-slate-200">
-                        <button
-                          onClick={() => handleResetItem(selectedItem.id)}
-                          className="w-full flex items-center justify-center space-x-2 px-3 py-2 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors border border-blue-200"
-                          title="Reset về trạng thái chờ"
-                        >
-                          <RotateCcw className="w-4 h-4" />
-                          <span>Reset về trạng thái chờ</span>
-                        </button>
-                     </div>
-
                      {/* Original Input */}
                      <div className="p-4 bg-white border-b border-slate-200">
                         <div className="text-xs font-bold text-slate-400 uppercase mb-2">Input Gốc</div>
