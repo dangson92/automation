@@ -359,12 +359,12 @@ const App: React.FC = () => {
   };
 
   const handleResetItem = (id: string) => {
-    // Reset a single queue item to PENDING state
+    // Reset a single queue item to QUEUED state
     setQueue(prev => prev.map(item => {
       if (item.id !== id) return item;
       return {
         ...item,
-        status: Status.PENDING,
+        status: Status.QUEUED,
         currentStepIndex: 0,
         results: [],
         finalResponse: undefined,
@@ -388,12 +388,12 @@ const App: React.FC = () => {
       });
     }
 
-    // Reset selected items to PENDING state
+    // Reset selected items to QUEUED state
     setQueue(prev => prev.map(item => {
       if (!selectedItemIds.has(item.id)) return item;
       return {
         ...item,
-        status: Status.PENDING,
+        status: Status.QUEUED,
         currentStepIndex: 0,
         results: [],
         finalResponse: undefined,
