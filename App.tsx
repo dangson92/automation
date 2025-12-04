@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Play, Pause, Plus, Trash2, Download, Save, UserCog, ChevronDown, Bot, Layout, Zap, X, Globe, HelpCircle, ArrowRight, Link as LinkIcon, Target, CheckCircle2, Cpu, FileText, Box, Layers, AlertTriangle, Monitor, Eye, EyeOff, Settings } from 'lucide-react';
+import { Play, Pause, Plus, Trash2, Download, Save, UserCog, ChevronDown, Bot, Layout, Zap, X, Globe, HelpCircle, ArrowRight, Link as LinkIcon, Target, CheckCircle2, Cpu, FileText, Box, Layers, AlertTriangle, Monitor, Eye, EyeOff, Settings, Image as ImageIcon } from 'lucide-react';
 import { Status, QueueItem, AppConfig, SavedAgent, AutomationConfig, WorkflowStep, StepResult } from './types';
 import { OutputEditor } from './components/OutputEditor';
 import { generateContent } from './services/geminiService';
@@ -95,6 +95,7 @@ const App: React.FC = () => {
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [editingOutput, setEditingOutput] = useState<{ itemId: string; stepId: string; content: string } | null>(null);
   const [rerunStepId, setRerunStepId] = useState<string | null>(null);
+  const [imageGallery, setImageGallery] = useState<{ itemId: string; stepId: string; imageIndex: number; images: string[]; currentSelected: number } | null>(null);
 
   // --- Init ---
   useEffect(() => {
@@ -482,6 +483,101 @@ const App: React.FC = () => {
     }));
   };
 
+  const handleToggleImageConfig = (stepId: string) => {
+    setConfig(prev => ({
+      ...prev,
+      steps: prev.steps.map(s => {
+        if (s.id !== stepId) return s;
+        if (!s.imageConfig) {
+          // Enable image config with defaults
+          return {
+            ...s,
+            imageConfig: {
+              enabled: true,
+              count: 3,
+              autoInsert: true
+            }
+          };
+        } else {
+          // Toggle enabled state
+          return {
+            ...s,
+            imageConfig: {
+              ...s.imageConfig,
+              enabled: !s.imageConfig.enabled
+            }
+          };
+        }
+      })
+    }));
+  };
+
+  const handleUpdateImageConfig = (stepId: string, field: 'count' | 'autoInsert', value: number | boolean) => {
+    setConfig(prev => ({
+      ...prev,
+      steps: prev.steps.map(s => {
+        if (s.id !== stepId) return s;
+        return {
+          ...s,
+          imageConfig: {
+            ...(s.imageConfig || { enabled: false, count: 3, autoInsert: true }),
+            [field]: value
+          }
+        };
+      })
+    }));
+  };
+
+  const handleSelectImage = (newImageUrl: string, newIndex: number) => {
+    if (!imageGallery) return;
+
+    const { itemId, stepId, imageIndex } = imageGallery;
+
+    setQueue(prev => prev.map(item => {
+      if (item.id !== itemId) return item;
+
+      return {
+        ...item,
+        results: item.results.map(result => {
+          if (result.stepId !== stepId || !result.imageData) return result;
+
+          const updatedImageData = result.imageData.map((imgData: any, idx: number) => {
+            if (idx !== imageIndex) return imgData;
+
+            // Update selected image
+            const oldImage = imgData.selectedImage;
+            const newImageData = {
+              ...imgData,
+              selectedImage: newImageUrl,
+              selectedIndex: newIndex
+            };
+
+            // Also update in response HTML
+            return newImageData;
+          });
+
+          // Update response HTML to replace old image URL with new one
+          const oldImageData = result.imageData[imageIndex];
+          let updatedResponse = result.response;
+          if (oldImageData) {
+            updatedResponse = updatedResponse.replace(
+              oldImageData.selectedImage,
+              newImageUrl
+            );
+          }
+
+          return {
+            ...result,
+            imageData: updatedImageData,
+            response: updatedResponse
+          };
+        })
+      };
+    }));
+
+    setImageGallery(null);
+  };
+
   const handlePickSelector = async (stepId: string, selectorField: 'input' | 'submit' | 'output') => {
     if (!window.electronAPI) {
       alert('Visual selector picker chỉ hoạt động trong Desktop App mode');
@@ -711,6 +807,137 @@ const App: React.FC = () => {
     });
   };
 
+  // --- IMAGE GENERATION HELPERS ---
+
+  // Parse HTML/text to find image shortcodes and extract context paragraph
+  const parseImageShortcodes = (content: string): Array<{ shortcode: string; contextParagraph: string }> => {
+    const shortcodeRegex = /\[image(\d+)\]/g;
+    const matches: Array<{ shortcode: string; contextParagraph: string }> = [];
+
+    // Find all shortcodes
+    const shortcodes = Array.from(content.matchAll(shortcodeRegex));
+
+    for (const match of shortcodes) {
+      const shortcode = match[0]; // e.g., [image1]
+      const position = match.index || 0;
+
+      // Extract text before the shortcode to find paragraph
+      const textBefore = content.substring(0, position);
+
+      // Split by common paragraph separators
+      const paragraphs = textBefore.split(/\n\n|\n|<\/p>|<br\s*\/?>|<\/div>/);
+
+      // Get the last non-empty paragraph
+      let contextParagraph = '';
+      for (let i = paragraphs.length - 1; i >= 0; i--) {
+        const p = paragraphs[i].replace(/<[^>]+>/g, '').trim(); // Strip HTML tags
+        if (p.length > 20) { // Minimum length for meaningful context
+          contextParagraph = p;
+          break;
+        }
+      }
+
+      // Fallback: if no paragraph found, take last 200 chars
+      if (!contextParagraph) {
+        contextParagraph = textBefore.replace(/<[^>]+>/g, '').trim().slice(-200);
+      }
+
+      matches.push({ shortcode, contextParagraph });
+    }
+
+    return matches;
+  };
+
+  // Search images from Perplexity based on context
+  const searchImagesForContext = async (context: string, itemId: string): Promise<string[]> => {
+    if (mode !== 'ELECTRON' || !window.electronAPI) {
+      appendLog(itemId, '[IMAGE] Chỉ hỗ trợ tìm ảnh trong Desktop mode');
+      return [];
+    }
+
+    try {
+      const query = `Dựa vào nội dung: ${context.substring(0, 200)}. Tìm ảnh không có watermark, ảnh chất lượng cao`;
+      appendLog(itemId, `[IMAGE] Đang tìm ảnh trên Perplexity...`);
+
+      const result = await window.electronAPI.searchPerplexityImages({
+        query,
+        headless
+      });
+
+      if (result.error) {
+        appendLog(itemId, `[IMAGE ERROR] ${result.error}`);
+        return [];
+      }
+
+      appendLog(itemId, `[IMAGE] Tìm thấy ${result.images?.length || 0} ảnh`);
+      return result.images || [];
+    } catch (err: any) {
+      appendLog(itemId, `[IMAGE ERROR] ${err.message}`);
+      return [];
+    }
+  };
+
+  // Process image generation for a step
+  const processImageGeneration = async (
+    stepResponse: string,
+    step: WorkflowStep,
+    itemId: string
+  ): Promise<{ updatedResponse: string; imageData: any[] }> => {
+    if (!step.imageConfig?.enabled) {
+      return { updatedResponse: stepResponse, imageData: [] };
+    }
+
+    appendLog(itemId, `[IMAGE] Bắt đầu xử lý ${step.imageConfig.count} ảnh...`);
+
+    // Parse shortcodes from response
+    const shortcodePairs = parseImageShortcodes(stepResponse);
+
+    if (shortcodePairs.length === 0) {
+      appendLog(itemId, '[IMAGE] Không tìm thấy shortcode ảnh trong response');
+      return { updatedResponse: stepResponse, imageData: [] };
+    }
+
+    appendLog(itemId, `[IMAGE] Tìm thấy ${shortcodePairs.length} shortcode`);
+
+    const imageData: any[] = [];
+    let updatedResponse = stepResponse;
+
+    // Process each shortcode
+    for (const { shortcode, contextParagraph } of shortcodePairs) {
+      appendLog(itemId, `[IMAGE] Xử lý ${shortcode}...`);
+
+      // Search images based on context
+      const images = await searchImagesForContext(contextParagraph, itemId);
+
+      if (images.length === 0) {
+        appendLog(itemId, `[IMAGE] Không tìm thấy ảnh cho ${shortcode}`);
+        continue;
+      }
+
+      // Random select one image
+      const randomIndex = Math.floor(Math.random() * images.length);
+      const selectedImage = images[randomIndex];
+
+      // Replace shortcode with image tag
+      const imgTag = `<img src="${selectedImage}" alt="${shortcode}" class="auto-generated-image" style="max-width: 100%; height: auto; margin: 1em 0;" />`;
+      updatedResponse = updatedResponse.replace(shortcode, imgTag);
+
+      // Save image data
+      imageData.push({
+        shortcode,
+        contextParagraph: contextParagraph.substring(0, 200),
+        searchQuery: `Dựa vào nội dung: ${contextParagraph.substring(0, 100)}...`,
+        images,
+        selectedImage,
+        selectedIndex: randomIndex
+      });
+
+      appendLog(itemId, `[IMAGE] Đã thay ${shortcode} bằng ảnh (${randomIndex + 1}/${images.length})`);
+    }
+
+    return { updatedResponse, imageData };
+  };
+
   // --- PROCESSING LOGIC ---
   const processQueue = useCallback(async () => {
     if (processingRef.current) return;
@@ -758,6 +985,15 @@ const App: React.FC = () => {
             const prevResult = localResults[prevIdx]?.response || '';
             const prevVar = `{{prev${prevIdx + 1}}}`;
             promptToSend = promptToSend.replace(new RegExp(prevVar.replace(/[{}]/g, '\\$&'), 'g'), prevResult);
+          }
+
+          // Append hidden prompt for image shortcodes if imageConfig is enabled
+          if (step.imageConfig?.enabled && step.imageConfig?.autoInsert) {
+            const imageCount = step.imageConfig.count || 3;
+            const shortcodes = Array.from({ length: imageCount }, (_, idx) => `[image${idx + 1}]`).join(',');
+            const hiddenPrompt = `\n\n[INSTRUCTION] Thêm ${imageCount} shortcode ảnh ${shortcodes} vào bài viết một cách tự nhiên, sử dụng dấu xuống dòng để ảnh được ở riêng 1 dòng`;
+            promptToSend += hiddenPrompt;
+            appendLog(id, `[IMAGE] Đã thêm prompt ẩn để chèn ${imageCount} shortcode ảnh`);
           }
 
           const urlVarMatches = Array.from((step.url || '').matchAll(/\{\{url_prev(\d*)\}\}/g));
@@ -839,6 +1075,14 @@ const App: React.FC = () => {
              stepResponse = await generateContent(promptToSend, config);
           }
 
+          // Process image generation if enabled
+          let imageData: any[] = [];
+          if (step.imageConfig?.enabled) {
+            const imageResult = await processImageGeneration(stepResponse, step, id);
+            stepResponse = imageResult.updatedResponse;
+            imageData = imageResult.imageData;
+          }
+
           previousResult = stepResponse;
 
           const resultEntry: StepResult = {
@@ -847,7 +1091,8 @@ const App: React.FC = () => {
             prompt: promptToSend,
             response: stepResponse,
             timestamp: Date.now(),
-            url: stepUrl
+            url: stepUrl,
+            imageData: imageData.length > 0 ? imageData : undefined
           };
 
           // Update local results array for next iteration's template variables
@@ -1616,6 +1861,64 @@ const App: React.FC = () => {
                                   )}
                                </div>
 
+                               {/* Image Generation Config */}
+                               <div className="mb-3 pt-3 border-t border-slate-100">
+                                  <div className="flex items-center justify-between mb-2">
+                                     <label className="text-[10px] font-bold text-slate-400 uppercase flex items-center">
+                                        <ImageIcon className="w-3 h-3 mr-1" />
+                                        Tạo ảnh tự động
+                                     </label>
+                                     <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                           type="checkbox"
+                                           checked={step.imageConfig?.enabled || false}
+                                           onChange={() => handleToggleImageConfig(step.id)}
+                                           className="sr-only peer"
+                                        />
+                                        <div className="w-9 h-5 bg-slate-200 peer-focus:ring-2 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                                     </label>
+                                  </div>
+
+                                  {step.imageConfig?.enabled && (
+                                     <div className="space-y-2 bg-indigo-50 p-2 rounded border border-indigo-100">
+                                        <div className="flex items-center space-x-2">
+                                           <label className="text-[10px] text-slate-600 font-medium">Số lượng ảnh:</label>
+                                           <input
+                                              type="number"
+                                              min="1"
+                                              max="10"
+                                              value={step.imageConfig?.count || 3}
+                                              onChange={(e) => handleUpdateImageConfig(step.id, 'count', parseInt(e.target.value) || 3)}
+                                              className="w-16 text-xs bg-white border border-indigo-200 rounded px-2 py-1 focus:ring-1 focus:ring-indigo-500"
+                                           />
+                                        </div>
+
+                                        <div className="flex items-center space-x-2">
+                                           <input
+                                              type="checkbox"
+                                              id={`auto-insert-${step.id}`}
+                                              checked={step.imageConfig?.autoInsert !== false}
+                                              onChange={(e) => handleUpdateImageConfig(step.id, 'autoInsert', e.target.checked)}
+                                              className="w-3 h-3 text-indigo-600 bg-white border-indigo-300 rounded focus:ring-indigo-500"
+                                           />
+                                           <label htmlFor={`auto-insert-${step.id}`} className="text-[10px] text-slate-600">
+                                              Tự động chèn shortcode vào bài viết
+                                           </label>
+                                        </div>
+
+                                        <div className="text-[9px] text-indigo-700 bg-white p-2 rounded border border-indigo-200">
+                                           <p className="font-semibold mb-1">Cách hoạt động:</p>
+                                           <ul className="list-disc list-inside space-y-0.5 text-indigo-600">
+                                              <li>Thêm prompt ẩn để AI chèn shortcode [image1], [image2]...</li>
+                                              <li>Tìm ảnh từ Perplexity dựa vào ngữ cảnh paragraph phía trên</li>
+                                              <li>Lấy ~20 ảnh cho mỗi shortcode, random chọn 1 để thay thế</li>
+                                              <li>Có thể chọn lại ảnh khác từ gallery sau khi xong</li>
+                                           </ul>
+                                        </div>
+                                     </div>
+                                  )}
+                               </div>
+
                             </div>
                          )}
                       </div>
@@ -1980,6 +2283,50 @@ const App: React.FC = () => {
                             <div>
                               <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Kết quả</div>
                               <div className="text-sm text-slate-800 bg-white border border-indigo-100 p-3 rounded-lg shadow-sm prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: result.response }} />
+
+                              {/* Image Gallery */}
+                              {result.imageData && result.imageData.length > 0 && (
+                                <div className="mt-3 bg-indigo-50 border border-indigo-200 p-3 rounded-lg">
+                                  <div className="text-[10px] uppercase font-bold text-indigo-700 mb-2 flex items-center">
+                                    <ImageIcon className="w-3 h-3 mr-1" />
+                                    Ảnh đã tạo ({result.imageData.length})
+                                  </div>
+                                  <div className="space-y-2">
+                                    {result.imageData.map((imgData: any, imgIdx: number) => (
+                                      <div key={imgIdx} className="bg-white p-2 rounded border border-indigo-100">
+                                        <div className="flex items-start space-x-2">
+                                          <img
+                                            src={imgData.selectedImage}
+                                            alt={imgData.shortcode}
+                                            className="w-20 h-20 object-cover rounded"
+                                            onError={(e) => { (e.target as HTMLImageElement).src = 'https://via.placeholder.com/80x80?text=Error'; }}
+                                          />
+                                          <div className="flex-1 min-w-0">
+                                            <div className="text-xs font-bold text-indigo-700 mb-1">{imgData.shortcode}</div>
+                                            <div className="text-[10px] text-slate-600 line-clamp-2 mb-1">{imgData.contextParagraph}</div>
+                                            <div className="text-[9px] text-slate-400">
+                                              Ảnh {imgData.selectedIndex + 1}/{imgData.images.length}
+                                            </div>
+                                            <button
+                                              className="mt-1 px-2 py-0.5 text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white rounded"
+                                              onClick={() => setImageGallery({
+                                                itemId: selectedItem.id,
+                                                stepId: result.stepId,
+                                                imageIndex: imgIdx,
+                                                images: imgData.images,
+                                                currentSelected: imgData.selectedIndex
+                                              })}
+                                            >
+                                              Chọn ảnh khác
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
                               <div className="mt-2 flex items-center space-x-2">
                                 <button
                                   className="px-2 py-1 text-xs rounded bg-indigo-600 text-white"
@@ -2029,6 +2376,65 @@ const App: React.FC = () => {
               onSave={(html) => { updateResultContent(editingOutput.itemId, editingOutput.stepId, html); setEditingOutput(null); }}
               onCancel={() => setEditingOutput(null)}
             />
+          )}
+
+          {/* Image Gallery Modal */}
+          {imageGallery && (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden">
+                <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                  <h3 className="text-lg font-bold text-slate-800 flex items-center">
+                    <ImageIcon className="w-5 h-5 mr-2 text-indigo-600" />
+                    Chọn ảnh ({imageGallery.images.length} ảnh)
+                  </h3>
+                  <button
+                    onClick={() => setImageGallery(null)}
+                    className="p-2 bg-white rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all shadow-sm"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4">
+                  <div className="grid grid-cols-3 gap-4">
+                    {imageGallery.images.map((imgUrl, idx) => (
+                      <div
+                        key={idx}
+                        className={`relative group cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
+                          idx === imageGallery.currentSelected
+                            ? 'border-indigo-600 ring-2 ring-indigo-300'
+                            : 'border-slate-200 hover:border-indigo-400'
+                        }`}
+                        onClick={() => handleSelectImage(imgUrl, idx)}
+                      >
+                        <div className="aspect-square bg-slate-100">
+                          <img
+                            src={imgUrl}
+                            alt={`Image ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x300?text=Error+Loading';
+                            }}
+                          />
+                        </div>
+                        {idx === imageGallery.currentSelected && (
+                          <div className="absolute top-2 right-2 bg-indigo-600 text-white rounded-full p-1">
+                            <CheckCircle2 className="w-4 h-4" />
+                          </div>
+                        )}
+                        <div className="absolute bottom-0 inset-x-0 bg-black/70 text-white text-xs p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          Ảnh {idx + 1}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="p-4 border-t border-slate-100 bg-slate-50 text-xs text-slate-500 text-center">
+                  Click vào ảnh để chọn. Ảnh được chọn sẽ thay thế trong bài viết.
+                </div>
+              </div>
+            </div>
           )}
 
         </div>
