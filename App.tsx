@@ -2355,46 +2355,56 @@ const App: React.FC = () => {
 
           {/* Detail Panel */}
           {selectedItem && (
-             <div
-               className={`w-[500px] border-l border-slate-200 bg-white flex flex-col shadow-xl z-30 ${
-                 isDetailPanelClosing
-                   ? 'animate-slide-out-right'
-                   : 'animate-slide-in-right'
-               }`}
-               style={{
-                 animation: isDetailPanelClosing
-                   ? 'slideOutRight 200ms ease-in-out forwards'
-                   : 'slideInRight 200ms ease-in-out forwards'
-               }}
-             >
-                <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                   <div>
-                      <h3 className="font-semibold text-slate-700">Chi tiết</h3>
-                      <p className="text-xs text-slate-500">ID: {selectedItem.id}</p>
-                   </div>
-                   <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => handleResetItem(selectedItem.id)}
-                        className="flex items-center space-x-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                        title="Reset về trạng thái chờ"
-                      >
-                        <RotateCcw className="w-4 h-4" />
-                        <span>Reset</span>
-                      </button>
-                      <button onClick={handleCloseDetailPanel} className="text-slate-400 hover:text-slate-700">
+             <>
+               {/* Overlay */}
+               <div
+                 className="fixed inset-0 bg-black/20 z-20"
+                 onClick={handleCloseDetailPanel}
+               />
+
+               {/* Detail Panel */}
+               <div
+                 className={`w-[500px] border-l border-slate-200 bg-white flex flex-col shadow-xl z-30 ${
+                   isDetailPanelClosing
+                     ? 'animate-slide-out-right'
+                     : 'animate-slide-in-right'
+                 }`}
+                 style={{
+                   animation: isDetailPanelClosing
+                     ? 'slideOutRight 200ms ease-in-out forwards'
+                     : 'slideInRight 200ms ease-in-out forwards'
+                 }}
+               >
+                  <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                     <div>
+                        <h3 className="font-semibold text-slate-700">Chi tiết</h3>
+                        <p className="text-xs text-slate-500">ID: {selectedItem.id}</p>
+                     </div>
+                     <button onClick={handleCloseDetailPanel} className="text-slate-400 hover:text-slate-700">
                         <X className="w-5 h-5" />
-                      </button>
-                   </div>
-                </div>
-                
-                <div className="flex-1 overflow-y-auto p-0 custom-scrollbar bg-slate-50/50">
-                   {/* Original Input */}
-                   <div className="p-4 bg-white border-b border-slate-200">
-                      <div className="text-xs font-bold text-slate-400 uppercase mb-2">Input Gốc</div>
-                      <div className="bg-slate-100 p-3 rounded-md text-sm text-slate-800 font-mono whitespace-pre-wrap border border-slate-200">
-                         {selectedItem.originalPrompt}
-                      </div>
-                   </div>
+                     </button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-0 custom-scrollbar bg-slate-50/50">
+                     {/* Reset Button */}
+                     <div className="p-4 bg-white border-b border-slate-200">
+                        <button
+                          onClick={() => handleResetItem(selectedItem.id)}
+                          className="w-full flex items-center justify-center space-x-2 px-3 py-2 text-sm text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors border border-blue-200"
+                          title="Reset về trạng thái chờ"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                          <span>Reset về trạng thái chờ</span>
+                        </button>
+                     </div>
+
+                     {/* Original Input */}
+                     <div className="p-4 bg-white border-b border-slate-200">
+                        <div className="text-xs font-bold text-slate-400 uppercase mb-2">Input Gốc</div>
+                        <div className="bg-slate-100 p-3 rounded-md text-sm text-slate-800 font-mono whitespace-pre-wrap border border-slate-200">
+                           {selectedItem.originalPrompt}
+                        </div>
+                     </div>
 
                    {/* Steps Timeline */}
                    <div className="p-4 space-y-6">
@@ -2512,7 +2522,8 @@ const App: React.FC = () => {
                       </div>
                    )}
                 </div>
-             </div>
+               </div>
+             </>
           )}
 
           {editingOutput && (
