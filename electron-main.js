@@ -747,3 +747,301 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
     return { error: err.message };
   }
 });
+
+// Scrape images from Perplexity Images tab
+ipcMain.handle('perplexity-search-images', async (event, { query, headless }) => {
+  console.log('Searching Perplexity images for:', query, 'Headless:', headless);
+
+  const workerWindow = new BrowserWindow({
+    show: !headless,
+    width: 1200,
+    height: 900,
+    webPreferences: {
+      partition: 'persist:automation',
+      offscreen: false
+    }
+  });
+
+  currentWorkerWindow = workerWindow;
+
+  workerWindow.webContents.on('console-message', (event, level, message) => {
+    const msg = String(message || '');
+    const suppress = [
+      'Third-party cookie will be blocked',
+      'Third-Party Cookie',
+      'Unrecognized feature: \'attribution-reporting\'',
+      'attribution-reporting'
+    ];
+    for (const s of suppress) {
+      if (msg.includes(s)) return;
+    }
+    console.log(`[Perplexity Worker] ${msg}`);
+  });
+
+  try {
+    console.log('Loading Perplexity...');
+    await workerWindow.loadURL('https://www.perplexity.ai/');
+
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    const result = await workerWindow.webContents.executeJavaScript(`
+      (async () => {
+        try {
+          const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+          const query = ${JSON.stringify(query)};
+
+          console.log('Starting Perplexity image search...');
+
+          // 1. Find and focus input
+          const inputSelectors = [
+            '#ask-input',
+            'div[contenteditable="true"]#ask-input',
+            'div[contenteditable="true"][role="textbox"]'
+          ];
+
+          let inputEl = null;
+          for (const sel of inputSelectors) {
+            inputEl = document.querySelector(sel);
+            if (inputEl) {
+              console.log('Found input with selector:', sel);
+              break;
+            }
+          }
+
+          if (!inputEl) {
+            let attempts = 0;
+            while (!inputEl && attempts < 20) {
+              await sleep(500);
+              for (const sel of inputSelectors) {
+                inputEl = document.querySelector(sel);
+                if (inputEl) break;
+              }
+              attempts++;
+              console.log('Waiting for input, attempt:', attempts);
+            }
+          }
+
+          if (!inputEl) {
+            return { error: 'Không tìm thấy ô nhập liệu Perplexity' };
+          }
+
+          // 2. Type query
+          console.log('Typing query...');
+          inputEl.focus();
+          await sleep(300);
+
+          // Clear and type
+          inputEl.textContent = '';
+
+          try {
+            document.execCommand('insertText', false, query);
+          } catch (e) {
+            inputEl.textContent = query;
+            const inputEvent = new InputEvent('input', {
+              bubbles: true,
+              cancelable: true,
+              inputType: 'insertText',
+              data: query
+            });
+            inputEl.dispatchEvent(inputEvent);
+          }
+
+          console.log('Query typed:', inputEl.textContent.substring(0, 50));
+          await sleep(1500);
+
+          // 3. Submit
+          console.log('Submitting query...');
+          const submitSelectors = [
+            'button[aria-label*="Submit"]',
+            'button[type="submit"]',
+            'button[aria-label*="Search"]'
+          ];
+
+          let submitBtn = null;
+          for (const sel of submitSelectors) {
+            submitBtn = document.querySelector(sel);
+            if (submitBtn && !submitBtn.disabled) {
+              console.log('Found submit button:', sel);
+              break;
+            }
+          }
+
+          if (submitBtn && !submitBtn.disabled) {
+            submitBtn.click();
+          } else {
+            // Try Enter key
+            const enterEvent = new KeyboardEvent('keydown', {
+              bubbles: true,
+              cancelable: true,
+              keyCode: 13,
+              which: 13,
+              key: 'Enter',
+              code: 'Enter'
+            });
+            inputEl.dispatchEvent(enterEvent);
+          }
+
+          console.log('Query submitted, waiting for response...');
+
+          // 4. Wait for response to complete
+          const stopSelectors = [
+            'button[aria-label*="Stop"]',
+            'button[aria-label*="Cancel"]'
+          ];
+
+          const anyStopPresent = () => {
+            for (const sel of stopSelectors) {
+              const el = document.querySelector(sel);
+              if (el) return true;
+            }
+            return false;
+          };
+
+          // Wait for generation to start
+          let generationStarted = false;
+          for (let attempts = 0; attempts < 20; attempts++) {
+            await sleep(500);
+            if (anyStopPresent()) {
+              generationStarted = true;
+              console.log('Generation started');
+              break;
+            }
+          }
+
+          if (!generationStarted) {
+            console.log('Warning: Stop button not detected, using fallback timing...');
+            await sleep(8000);
+          } else {
+            // Wait for generation to complete
+            for (let attempts = 0; attempts < 120; attempts++) {
+              await sleep(1000);
+              const present = anyStopPresent();
+              if (!present) {
+                console.log('Generation complete');
+                await sleep(2000);
+                break;
+              }
+              if (attempts % 5 === 0) {
+                console.log('Still generating... attempt:', attempts);
+              }
+            }
+          }
+
+          // 5. Click Images tab
+          console.log('Looking for Images tab...');
+          const imageTabSelectors = [
+            'button[aria-label="Images"]',
+            'button[data-testid="answer-mode-tabs-tab-images"]',
+            'button:has(svg[xlink\\\\:href*="photo"])',
+            'button:has(span:contains("Images"))'
+          ];
+
+          let imageTab = null;
+          for (const sel of imageTabSelectors) {
+            try {
+              imageTab = document.querySelector(sel);
+              if (imageTab) {
+                console.log('Found Images tab with selector:', sel);
+                break;
+              }
+            } catch (e) {
+              // Continue to next selector
+            }
+          }
+
+          // Fallback: find by text content
+          if (!imageTab) {
+            const allButtons = document.querySelectorAll('button');
+            for (const btn of allButtons) {
+              const text = (btn.textContent || '').toLowerCase();
+              const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
+              if (text.includes('image') || ariaLabel.includes('image')) {
+                imageTab = btn;
+                console.log('Found Images tab by text/aria-label');
+                break;
+              }
+            }
+          }
+
+          if (!imageTab) {
+            return { error: 'Không tìm thấy tab Images trên Perplexity' };
+          }
+
+          console.log('Clicking Images tab...');
+          imageTab.click();
+          await sleep(3000); // Wait for images to load
+
+          // 6. Scroll to load lazy images
+          console.log('Scrolling to load images...');
+          for (let i = 0; i < 3; i++) {
+            window.scrollBy(0, 500);
+            await sleep(1000);
+          }
+
+          await sleep(2000);
+
+          // 7. Extract image URLs
+          console.log('Extracting image URLs...');
+          const imageUrls = [];
+
+          // Try different selectors for images
+          const imageSets = [
+            document.querySelectorAll('img[src*="http"]'),
+            document.querySelectorAll('img[data-src*="http"]'),
+            document.querySelectorAll('[style*="background-image"]')
+          ];
+
+          for (const imgSet of imageSets) {
+            for (const img of imgSet) {
+              let url = null;
+
+              if (img.tagName === 'IMG') {
+                url = img.src || img.getAttribute('data-src');
+              } else {
+                const style = img.style.backgroundImage || '';
+                const match = style.match(/url\\(['"]?([^'"\\)]+)['"]?\\)/);
+                if (match) url = match[1];
+              }
+
+              if (url && url.startsWith('http') && !url.includes('gravatar') && !url.includes('icon')) {
+                if (!imageUrls.includes(url)) {
+                  imageUrls.push(url);
+                  if (imageUrls.length >= 20) break;
+                }
+              }
+            }
+            if (imageUrls.length >= 20) break;
+          }
+
+          console.log('Extracted', imageUrls.length, 'image URLs');
+
+          return {
+            success: true,
+            images: imageUrls.slice(0, 20),
+            count: imageUrls.length
+          };
+
+        } catch (scriptError) {
+          console.error('Script error:', scriptError);
+          return { error: 'Script error: ' + scriptError.message };
+        }
+      })();
+    `);
+
+    console.log('Perplexity image search result:', result);
+
+    if (!workerWindow.isDestroyed()) {
+      workerWindow.close();
+    }
+    currentWorkerWindow = null;
+    return result;
+
+  } catch (err) {
+    console.error('Perplexity image search error:', err);
+    if (!workerWindow.isDestroyed()) {
+      workerWindow.close();
+    }
+    currentWorkerWindow = null;
+    return { error: err.message };
+  }
+});

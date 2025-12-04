@@ -8,5 +8,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveQueue: (queueData) => ipcRenderer.invoke('queue-save', queueData),
   loadQueue: () => ipcRenderer.invoke('queue-load'),
   exportSettings: (settings) => ipcRenderer.invoke('settings-export', settings),
-  importSettings: () => ipcRenderer.invoke('settings-import')
+  importSettings: () => ipcRenderer.invoke('settings-import'),
+  searchPerplexityImages: (data) => ipcRenderer.invoke('perplexity-search-images', data)
 });
