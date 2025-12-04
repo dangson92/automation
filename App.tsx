@@ -96,6 +96,8 @@ const App: React.FC = () => {
   const [editingOutput, setEditingOutput] = useState<{ itemId: string; stepId: string; content: string } | null>(null);
   const [rerunStepId, setRerunStepId] = useState<string | null>(null);
   const [imageGallery, setImageGallery] = useState<{ itemId: string; stepId: string; imageIndex: number; images: string[]; currentSelected: number } | null>(null);
+  const [scrollToStepId, setScrollToStepId] = useState<string | null>(null);
+  const [isDetailPanelClosing, setIsDetailPanelClosing] = useState(false);
 
   // --- Init ---
   useEffect(() => {
@@ -150,6 +152,19 @@ const App: React.FC = () => {
       localStorage.setItem('promptflow_queue', JSON.stringify(queue));
     }
   }, [queue, mode]);
+
+  // Scroll to step when scrollToStepId changes
+  useEffect(() => {
+    if (scrollToStepId) {
+      setTimeout(() => {
+        const element = document.getElementById(`step-detail-${scrollToStepId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        setScrollToStepId(null);
+      }, 300); // Wait for detail panel animation
+    }
+  }, [scrollToStepId]);
 
   // --- Helpers ---
   const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -527,6 +542,14 @@ const App: React.FC = () => {
         };
       })
     }));
+  };
+
+  const handleCloseDetailPanel = () => {
+    setIsDetailPanelClosing(true);
+    setTimeout(() => {
+      setSelectedItemId(null);
+      setIsDetailPanelClosing(false);
+    }, 200); // Match animation duration
   };
 
   const handleSelectImage = (newImageUrl: string, newIndex: number) => {
@@ -919,8 +942,8 @@ const App: React.FC = () => {
       const randomIndex = Math.floor(Math.random() * images.length);
       const selectedImage = images[randomIndex];
 
-      // Replace shortcode with image tag
-      const imgTag = `<img src="${selectedImage}" alt="${shortcode}" class="auto-generated-image" style="max-width: 100%; height: auto; margin: 1em 0;" />`;
+      // Replace shortcode with centered image tag
+      const imgTag = `<div style="text-align: center; margin: 1.5em 0;"><img src="${selectedImage}" alt="${shortcode}" class="auto-generated-image" style="max-width: 100%; height: auto; display: inline-block;" /></div>`;
       updatedResponse = updatedResponse.replace(shortcode, imgTag);
 
       // Save image data
@@ -2169,9 +2192,9 @@ const App: React.FC = () => {
                      </th>
                      <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-12 sticky left-10 bg-slate-100 z-20">#</th>
                      <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-[140px] min-w-[140px] sticky left-[88px] bg-slate-100 z-20 whitespace-nowrap">Trạng thái</th>
-                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 min-w-[200px] max-w-xs">Input Gốc</th>
+                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-64">Input Gốc</th>
                      {config.steps.map(step => (
-                        <th key={step.id} className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 min-w-[250px]">
+                        <th key={step.id} className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-80">
                            <div className="flex items-center space-x-1">
                               <span>{step.name}</span>
                            </div>
@@ -2206,16 +2229,25 @@ const App: React.FC = () => {
                         <td className="p-3 sticky left-[88px] bg-inherit z-10 whitespace-nowrap cursor-pointer" onClick={() => setSelectedItemId(item.id)}>
                            <StatusBadge status={item.status} />
                         </td>
-                        <td className="p-3 text-sm text-slate-800 font-medium truncate max-w-xs align-top cursor-pointer" onClick={() => setSelectedItemId(item.id)}>
+                        <td className="p-3 text-sm text-slate-800 font-medium truncate w-64 align-top cursor-pointer" onClick={() => setSelectedItemId(item.id)}>
                            {item.originalPrompt}
                         </td>
-                        
+
                         {config.steps.map((step, sIdx) => {
                            const result = item.results.find(r => r.stepId === step.id);
                            const isCurrent = item.currentStepIndex === sIdx && item.status === Status.RUNNING;
-                           
+
                            return (
-                              <td key={step.id} className="p-3 text-sm text-slate-600 align-top border-l border-slate-50">
+                              <td
+                                 key={step.id}
+                                 className="p-3 text-sm text-slate-600 align-top border-l border-slate-50 w-80 cursor-pointer hover:bg-indigo-50/80 transition-colors"
+                                 onClick={() => {
+                                   setSelectedItemId(item.id);
+                                   if (result) {
+                                     setScrollToStepId(step.id);
+                                   }
+                                 }}
+                              >
                                  {result ? (
                                     <div className="max-h-20 overflow-hidden text-ellipsis line-clamp-3" title={result.response}>
                                        {result.response}
@@ -2243,13 +2275,15 @@ const App: React.FC = () => {
 
           {/* Detail Panel */}
           {selectedItem && (
-             <div className="w-[500px] border-l border-slate-200 bg-white flex flex-col shadow-xl z-30 animate-in slide-in-from-right duration-200">
+             <div className={`w-[500px] border-l border-slate-200 bg-white flex flex-col shadow-xl z-30 transition-all duration-200 ease-in-out ${
+               isDetailPanelClosing ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100 animate-in slide-in-from-right'
+             }`}>
                 <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                    <div>
                       <h3 className="font-semibold text-slate-700">Chi tiết</h3>
                       <p className="text-xs text-slate-500">ID: {selectedItem.id}</p>
                    </div>
-                   <button onClick={() => setSelectedItemId(null)} className="text-slate-400 hover:text-slate-700">
+                   <button onClick={handleCloseDetailPanel} className="text-slate-400 hover:text-slate-700">
                       <X className="w-5 h-5" />
                    </button>
                 </div>
@@ -2266,7 +2300,7 @@ const App: React.FC = () => {
                    {/* Steps Timeline */}
                    <div className="p-4 space-y-6">
                       {selectedItem.results.map((result, idx) => (
-                         <div key={idx} className="relative pl-6 border-l-2 border-indigo-200 last:border-0 pb-6 last:pb-0">
+                         <div key={idx} id={`step-detail-${result.stepId}`} className="relative pl-6 border-l-2 border-indigo-200 last:border-0 pb-6 last:pb-0 scroll-mt-4">
                             {/* Step Node */}
                             <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-indigo-500 border-2 border-white shadow-sm"></div>
                             
@@ -2424,10 +2458,20 @@ const App: React.FC = () => {
                             src={imgUrl}
                             alt={`Image ${idx + 1}`}
                             className="w-full h-full object-cover"
+                            onLoad={(e) => {
+                              const img = e.target as HTMLImageElement;
+                              const sizeTag = img.nextElementSibling as HTMLElement;
+                              if (sizeTag && sizeTag.classList.contains('image-size-tag')) {
+                                sizeTag.textContent = `${img.naturalWidth} × ${img.naturalHeight}px`;
+                              }
+                            }}
                             onError={(e) => {
                               (e.target as HTMLImageElement).src = 'https://via.placeholder.com/300x300?text=Error+Loading';
                             }}
                           />
+                          <div className="image-size-tag absolute top-2 left-2 bg-black/70 text-white text-[10px] px-2 py-1 rounded font-mono">
+                            ...
+                          </div>
                         </div>
                         {idx === imageGallery.currentSelected && (
                           <div className="absolute top-2 right-2 bg-indigo-600 text-white rounded-full p-1">
