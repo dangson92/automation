@@ -584,10 +584,11 @@ const App: React.FC = () => {
           const oldImageData = result.imageData[imageIndex];
           let updatedResponse = result.response;
           if (oldImageData) {
-            updatedResponse = updatedResponse.replace(
-              oldImageData.selectedImage,
-              newImageUrl
-            );
+            // Use regex to find and replace the img tag with the old URL
+            // This ensures we maintain the centered div structure
+            const escapedOldUrl = oldImageData.selectedImage.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const imgTagRegex = new RegExp(`<img\\s+src="${escapedOldUrl}"([^>]*)>`, 'g');
+            updatedResponse = updatedResponse.replace(imgTagRegex, `<img src="${newImageUrl}"$1>`);
           }
 
           return {
@@ -2192,9 +2193,9 @@ const App: React.FC = () => {
                      </th>
                      <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-12 sticky left-10 bg-slate-100 z-20">#</th>
                      <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-[140px] min-w-[140px] sticky left-[88px] bg-slate-100 z-20 whitespace-nowrap">Trạng thái</th>
-                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-64">Input Gốc</th>
+                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-64 max-w-64">Input Gốc</th>
                      {config.steps.map(step => (
-                        <th key={step.id} className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-80">
+                        <th key={step.id} className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-80 max-w-80">
                            <div className="flex items-center space-x-1">
                               <span>{step.name}</span>
                            </div>
@@ -2217,7 +2218,7 @@ const App: React.FC = () => {
                         key={item.id}
                         className={`hover:bg-indigo-50/50 group transition-colors ${selectedItemId === item.id ? 'bg-indigo-50' : ''}`}
                       >
-                        <td className="p-3 sticky left-0 bg-inherit z-10" onClick={(e) => e.stopPropagation()}>
+                        <td className="p-3 sticky left-0 bg-white z-10" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={selectedItemIds.has(item.id)}
@@ -2225,12 +2226,12 @@ const App: React.FC = () => {
                             className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                           />
                         </td>
-                        <td className="p-3 text-xs font-mono text-slate-400 sticky left-10 bg-inherit z-10 cursor-pointer" onClick={() => setSelectedItemId(item.id)}>{idx + 1}</td>
-                        <td className="p-3 sticky left-[88px] bg-inherit z-10 whitespace-nowrap cursor-pointer" onClick={() => setSelectedItemId(item.id)}>
+                        <td className="p-3 text-xs font-mono text-slate-400 sticky left-10 bg-white z-10 cursor-pointer" onClick={() => setSelectedItemId(item.id)}>{idx + 1}</td>
+                        <td className="p-3 sticky left-[88px] bg-white z-10 whitespace-nowrap cursor-pointer" onClick={() => setSelectedItemId(item.id)}>
                            <StatusBadge status={item.status} />
                         </td>
-                        <td className="p-3 text-sm text-slate-800 font-medium truncate w-64 align-top cursor-pointer" onClick={() => setSelectedItemId(item.id)}>
-                           {item.originalPrompt}
+                        <td className="p-3 text-sm text-slate-800 font-medium w-64 max-w-64 align-top cursor-pointer" onClick={() => setSelectedItemId(item.id)}>
+                           <div className="truncate">{item.originalPrompt}</div>
                         </td>
 
                         {config.steps.map((step, sIdx) => {
@@ -2240,7 +2241,7 @@ const App: React.FC = () => {
                            return (
                               <td
                                  key={step.id}
-                                 className="p-3 text-sm text-slate-600 align-top border-l border-slate-50 w-80 cursor-pointer hover:bg-indigo-50/80 transition-colors"
+                                 className="p-3 text-sm text-slate-600 align-top border-l border-slate-50 w-80 max-w-80 cursor-pointer hover:bg-indigo-50/80 transition-colors"
                                  onClick={() => {
                                    setSelectedItemId(item.id);
                                    if (result) {
@@ -2249,7 +2250,7 @@ const App: React.FC = () => {
                                  }}
                               >
                                  {result ? (
-                                    <div className="max-h-20 overflow-hidden text-ellipsis line-clamp-3" title={result.response}>
+                                    <div className="max-h-20 overflow-hidden line-clamp-3 break-words" title={result.response}>
                                        {result.response}
                                     </div>
                                  ) : isCurrent ? (
@@ -2275,9 +2276,18 @@ const App: React.FC = () => {
 
           {/* Detail Panel */}
           {selectedItem && (
-             <div className={`w-[500px] border-l border-slate-200 bg-white flex flex-col shadow-xl z-30 transition-all duration-200 ease-in-out ${
-               isDetailPanelClosing ? 'translate-x-full opacity-0' : 'translate-x-0 opacity-100 animate-in slide-in-from-right'
-             }`}>
+             <div
+               className={`w-[500px] border-l border-slate-200 bg-white flex flex-col shadow-xl z-30 ${
+                 isDetailPanelClosing
+                   ? 'animate-slide-out-right'
+                   : 'animate-slide-in-right'
+               }`}
+               style={{
+                 animation: isDetailPanelClosing
+                   ? 'slideOutRight 200ms ease-in-out forwards'
+                   : 'slideInRight 200ms ease-in-out forwards'
+               }}
+             >
                 <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                    <div>
                       <h3 className="font-semibold text-slate-700">Chi tiết</h3>
