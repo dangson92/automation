@@ -879,7 +879,8 @@ const App: React.FC = () => {
                                     }
                                   }
                                   const clone = root.cloneNode(true) as HTMLElement;
-                                  clone.querySelectorAll('[aria-label="Copy"], button, svg, div.sticky, div[class*="bg-token"], [class*="prose-btn"]').forEach(el => el.remove());
+                                  // Remove only UI elements, not content containers
+                                  clone.querySelectorAll('[aria-label="Copy"], button:not(.prose-btn), svg, div.sticky').forEach(el => el.remove());
                                   const html = clone.innerHTML || '';
                                   if (html && html.trim().length > 0) return html;
                                   const text = root.innerText || root.textContent || '';
