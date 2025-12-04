@@ -888,53 +888,12 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless }) =>
             inputEl.dispatchEvent(enterEvent);
           }
 
-          console.log('Query submitted, waiting for response...');
+          console.log('Query submitted');
 
-          // 4. Wait for response to complete
-          const stopSelectors = [
-            'button[aria-label*="Stop"]',
-            'button[aria-label*="Cancel"]'
-          ];
+          // Small delay for UI to update
+          await sleep(2000);
 
-          const anyStopPresent = () => {
-            for (const sel of stopSelectors) {
-              const el = document.querySelector(sel);
-              if (el) return true;
-            }
-            return false;
-          };
-
-          // Wait for generation to start
-          let generationStarted = false;
-          for (let attempts = 0; attempts < 20; attempts++) {
-            await sleep(500);
-            if (anyStopPresent()) {
-              generationStarted = true;
-              console.log('Generation started');
-              break;
-            }
-          }
-
-          if (!generationStarted) {
-            console.log('Warning: Stop button not detected, using fallback timing...');
-            await sleep(8000);
-          } else {
-            // Wait for generation to complete
-            for (let attempts = 0; attempts < 120; attempts++) {
-              await sleep(1000);
-              const present = anyStopPresent();
-              if (!present) {
-                console.log('Generation complete');
-                await sleep(2000);
-                break;
-              }
-              if (attempts % 5 === 0) {
-                console.log('Still generating... attempt:', attempts);
-              }
-            }
-          }
-
-          // 5. Click Images tab
+          // 4. Click Images tab directly (no need to wait for text response)
           console.log('Looking for Images tab...');
           const imageTabSelectors = [
             'button[aria-label="Images"]',
