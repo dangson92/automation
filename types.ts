@@ -11,6 +11,7 @@ export interface ImageConfig {
   enabled: boolean;          // Toggle "Thêm ảnh"
   count: number;             // Số lượng shortcode ảnh sẽ thêm vào
   autoInsert: boolean;       // Tự động chèn shortcode vào content
+  source: 'perplexity' | 'google' | 'ai'; // Nguồn ảnh
 }
 
 export interface ImageData {

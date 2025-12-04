@@ -495,7 +495,8 @@ const App: React.FC = () => {
             imageConfig: {
               enabled: true,
               count: 3,
-              autoInsert: true
+              autoInsert: true,
+              source: 'perplexity' as const
             }
           };
         } else {
@@ -512,7 +513,7 @@ const App: React.FC = () => {
     }));
   };
 
-  const handleUpdateImageConfig = (stepId: string, field: 'count' | 'autoInsert', value: number | boolean) => {
+  const handleUpdateImageConfig = (stepId: string, field: 'count' | 'autoInsert' | 'source', value: number | boolean | string) => {
     setConfig(prev => ({
       ...prev,
       steps: prev.steps.map(s => {
@@ -520,7 +521,7 @@ const App: React.FC = () => {
         return {
           ...s,
           imageConfig: {
-            ...(s.imageConfig || { enabled: false, count: 3, autoInsert: true }),
+            ...(s.imageConfig || { enabled: false, count: 3, autoInsert: true, source: 'perplexity' as const }),
             [field]: value
           }
         };
@@ -1866,7 +1867,7 @@ const App: React.FC = () => {
                                   <div className="flex items-center justify-between mb-2">
                                      <label className="text-[10px] font-bold text-slate-400 uppercase flex items-center">
                                         <ImageIcon className="w-3 h-3 mr-1" />
-                                        Tạo ảnh tự động
+                                        Thêm ảnh
                                      </label>
                                      <label className="relative inline-flex items-center cursor-pointer">
                                         <input
@@ -1882,7 +1883,20 @@ const App: React.FC = () => {
                                   {step.imageConfig?.enabled && (
                                      <div className="space-y-2 bg-indigo-50 p-2 rounded border border-indigo-100">
                                         <div className="flex items-center space-x-2">
-                                           <label className="text-[10px] text-slate-600 font-medium">Số lượng ảnh:</label>
+                                           <label className="text-[10px] text-slate-600 font-medium w-20">Nguồn ảnh:</label>
+                                           <select
+                                              value={step.imageConfig?.source || 'perplexity'}
+                                              onChange={(e) => handleUpdateImageConfig(step.id, 'source', e.target.value)}
+                                              className="flex-1 text-xs bg-white border border-indigo-200 rounded px-2 py-1 focus:ring-1 focus:ring-indigo-500"
+                                           >
+                                              <option value="perplexity">Perplexity</option>
+                                              <option value="google" disabled>Google Search (Coming soon)</option>
+                                              <option value="ai" disabled>AI Generate (Coming soon)</option>
+                                           </select>
+                                        </div>
+
+                                        <div className="flex items-center space-x-2">
+                                           <label className="text-[10px] text-slate-600 font-medium w-20">Số lượng:</label>
                                            <input
                                               type="number"
                                               min="1"
@@ -1907,13 +1921,11 @@ const App: React.FC = () => {
                                         </div>
 
                                         <div className="text-[9px] text-indigo-700 bg-white p-2 rounded border border-indigo-200">
-                                           <p className="font-semibold mb-1">Cách hoạt động:</p>
-                                           <ul className="list-disc list-inside space-y-0.5 text-indigo-600">
-                                              <li>Thêm prompt ẩn để AI chèn shortcode [image1], [image2]...</li>
-                                              <li>Tìm ảnh từ Perplexity dựa vào ngữ cảnh paragraph phía trên</li>
-                                              <li>Lấy ~20 ảnh cho mỗi shortcode, random chọn 1 để thay thế</li>
-                                              <li>Có thể chọn lại ảnh khác từ gallery sau khi xong</li>
-                                           </ul>
+                                           <p className="font-semibold mb-1">Hướng dẫn:</p>
+                                           <ol className="list-decimal list-inside space-y-0.5 text-indigo-600">
+                                              <li>Đợi tạo xong bài viết</li>
+                                              <li>Ấn vào chi tiết để xem và chọn lại ảnh nếu muốn</li>
+                                           </ol>
                                         </div>
                                      </div>
                                   )}
