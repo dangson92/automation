@@ -701,18 +701,24 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
             targetEl = outEls[outEls.length - 1];
           }
           const extractContent = (root) => {
-            const codeEl = root.querySelector('pre code');
+            // If content is in a code block, extract text only (removes all HTML/syntax highlighting)
+            const codeEl = root.querySelector('pre code, code');
             if (codeEl) {
-              const cls = codeEl.className || '';
-              if (cls.includes('language-html') || cls.includes('language-xml') || cls.includes('lang-html') || cls.includes('lang-xml')) {
-                return codeEl.textContent || codeEl.innerText || '';
+              const textContent = codeEl.textContent || codeEl.innerText || '';
+              // Only use code content if it's substantial
+              if (textContent.trim().length > 20) {
+                return textContent;
               }
             }
+
+            // Otherwise extract HTML, removing UI elements
             const clone = root.cloneNode(true);
-            // Remove only UI elements, not content containers
-            clone.querySelectorAll('button, svg, [aria-label="Copy"], [class*="copy"], div.sticky').forEach(el => el.remove());
+            // Remove wrapper divs, buttons, and other UI elements
+            clone.querySelectorAll('[aria-label="Copy"], button, svg, div.sticky, pre, .rounded-2xl, [class*="corner-"]').forEach(el => el.remove());
             const html = clone.innerHTML || '';
             if (html && html.trim().length > 0) return html;
+
+            // Fallback to text
             const text = root.innerText || root.textContent || '';
             return text;
           };
