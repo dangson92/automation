@@ -2310,7 +2310,7 @@ const App: React.FC = () => {
                            <StatusBadge status={item.status} />
                         </td>
                         <td className="p-3 text-sm text-slate-800 font-medium w-64 max-w-64 align-top cursor-pointer" onClick={() => setSelectedItemId(item.id)}>
-                           <div className="truncate">{item.originalPrompt}</div>
+                           <div className="break-words">{item.originalPrompt}</div>
                         </td>
 
                         {config.steps.map((step, sIdx) => {
