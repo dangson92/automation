@@ -190,6 +190,20 @@ const App: React.FC = () => {
     }
   }, [scrollToStepId]);
 
+  // Handle ESC key to close detail panel
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && selectedItem) {
+        handleCloseDetailPanel();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedItem]);
+
   // --- Helpers ---
   const generateId = () => Math.random().toString(36).substring(2, 9);
 
@@ -2259,7 +2273,7 @@ const App: React.FC = () => {
 
              {/* DATA GRID */}
              <div className="flex-1 overflow-auto custom-scrollbar">
-               <table className="w-full text-left border-collapse">
+               <table className="text-left border-collapse" style={{ minWidth: '100%' }}>
                  <thead className="bg-slate-100 sticky top-0 z-10 shadow-sm">
                    <tr>
                      <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-10 sticky left-0 bg-slate-100 z-20">
