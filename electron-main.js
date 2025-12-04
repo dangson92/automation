@@ -709,7 +709,8 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
               }
             }
             const clone = root.cloneNode(true);
-            clone.querySelectorAll('button, svg, [aria-label="Copy"], [class*="copy"], div.sticky, div[class*="bg-token"], [class*="prose-btn"]').forEach(el => el.remove());
+            // Remove only UI elements, not content containers
+            clone.querySelectorAll('button, svg, [aria-label="Copy"], [class*="copy"], div.sticky').forEach(el => el.remove());
             const html = clone.innerHTML || '';
             if (html && html.trim().length > 0) return html;
             const text = root.innerText || root.textContent || '';
