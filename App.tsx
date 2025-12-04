@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Play, Pause, Plus, Trash2, Download, Save, UserCog, ChevronDown, Bot, Layout, Zap, X, Globe, HelpCircle, ArrowRight, Link as LinkIcon, Target, CheckCircle2, Cpu, FileText, Box, Layers, AlertTriangle, Monitor, Eye, EyeOff, Settings, Image as ImageIcon } from 'lucide-react';
+import { Play, Pause, Plus, Trash2, Download, Save, UserCog, ChevronDown, Bot, Layout, Zap, X, Globe, HelpCircle, ArrowRight, Link as LinkIcon, Target, CheckCircle2, Cpu, FileText, Box, Layers, AlertTriangle, Monitor, Eye, EyeOff, Settings, Image as ImageIcon, RotateCcw } from 'lucide-react';
 import { Status, QueueItem, AppConfig, SavedAgent, AutomationConfig, WorkflowStep, StepResult } from './types';
 import { OutputEditor } from './components/OutputEditor';
 import { generateContent } from './services/geminiService';
@@ -48,6 +48,30 @@ const isExtension = () => {
 // Check if running as Electron App
 const isElectron = () => {
   return !!window.electronAPI;
+};
+
+// Clean HTML to remove unnecessary attributes like data-start, data-end, etc.
+const cleanHTML = (html: string): string => {
+  if (!html) return html;
+
+  // Use DOMParser to parse HTML
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+
+  // Remove unwanted attributes from all elements
+  const allElements = doc.querySelectorAll('*');
+  allElements.forEach(element => {
+    // List of attributes to remove
+    const attrsToRemove = ['data-start', 'data-end', 'data-is-last-node', 'data-is-only-node', 'data-id', 'data-index'];
+    attrsToRemove.forEach(attr => {
+      if (element.hasAttribute(attr)) {
+        element.removeAttribute(attr);
+      }
+    });
+  });
+
+  // Return cleaned HTML
+  return doc.body.innerHTML;
 };
 
 const App: React.FC = () => {
@@ -332,6 +356,54 @@ const App: React.FC = () => {
     if (inputTextareaRef.current) {
       inputTextareaRef.current.focus();
     }
+  };
+
+  const handleResetItem = (id: string) => {
+    // Reset a single queue item to PENDING state
+    setQueue(prev => prev.map(item => {
+      if (item.id !== id) return item;
+      return {
+        ...item,
+        status: Status.PENDING,
+        currentStepIndex: 0,
+        results: [],
+        finalResponse: undefined,
+        error: undefined,
+        logs: []
+      };
+    }));
+  };
+
+  const handleResetSelected = () => {
+    if (selectedItemIds.size === 0) return;
+
+    // Stop automation first
+    stopRef.current = true;
+    setIsProcessing(false);
+    processingRef.current = false;
+
+    if (mode === 'ELECTRON' && window.electronAPI) {
+      window.electronAPI.stopAutomation().catch(err => {
+        console.error('Failed to stop automation:', err);
+      });
+    }
+
+    // Reset selected items to PENDING state
+    setQueue(prev => prev.map(item => {
+      if (!selectedItemIds.has(item.id)) return item;
+      return {
+        ...item,
+        status: Status.PENDING,
+        currentStepIndex: 0,
+        results: [],
+        finalResponse: undefined,
+        error: undefined,
+        logs: []
+      };
+    }));
+
+    // Clear selection
+    setSelectedItemIds(new Set());
   };
 
   const handleToggleSelect = (id: string) => {
@@ -1099,6 +1171,9 @@ const App: React.FC = () => {
              // --- DIRECT API ---
              stepResponse = await generateContent(promptToSend, config);
           }
+
+          // Clean HTML to remove unnecessary attributes
+          stepResponse = cleanHTML(stepResponse);
 
           // Process image generation if enabled
           let imageData: any[] = [];
@@ -2167,6 +2242,10 @@ const App: React.FC = () => {
                       <Download className="w-4 h-4" />
                       <span>Excel</span>
                    </button>
+                   <button onClick={handleResetSelected} disabled={selectedItemIds.size === 0} className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-blue-300 rounded-md text-sm text-blue-600 hover:bg-blue-50 hover:text-blue-700 transition-colors disabled:opacity-50">
+                      <RotateCcw className="w-4 h-4" />
+                      <span>Reset đã chọn</span>
+                   </button>
                    <button onClick={handleDeleteSelected} disabled={selectedItemIds.size === 0} className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-orange-300 rounded-md text-sm text-orange-600 hover:bg-orange-50 hover:text-orange-700 transition-colors disabled:opacity-50">
                       <Trash2 className="w-4 h-4" />
                       <span>Xóa đã chọn</span>
@@ -2293,9 +2372,19 @@ const App: React.FC = () => {
                       <h3 className="font-semibold text-slate-700">Chi tiết</h3>
                       <p className="text-xs text-slate-500">ID: {selectedItem.id}</p>
                    </div>
-                   <button onClick={handleCloseDetailPanel} className="text-slate-400 hover:text-slate-700">
-                      <X className="w-5 h-5" />
-                   </button>
+                   <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => handleResetItem(selectedItem.id)}
+                        className="flex items-center space-x-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        title="Reset về trạng thái chờ"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                        <span>Reset</span>
+                      </button>
+                      <button onClick={handleCloseDetailPanel} className="text-slate-400 hover:text-slate-700">
+                        <X className="w-5 h-5" />
+                      </button>
+                   </div>
                 </div>
                 
                 <div className="flex-1 overflow-y-auto p-0 custom-scrollbar bg-slate-50/50">
