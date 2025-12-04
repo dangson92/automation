@@ -974,7 +974,7 @@ const App: React.FC = () => {
     }
 
     try {
-      const query = `Dựa vào nội dung: ${context.substring(0, 200)}. Tìm ảnh không có watermark, ảnh chất lượng cao`;
+      const query = `Dựa vào nội dung: ${context.substring(0, 200)}. Tìm ảnh không có watermark, ảnh chất lượng cao, ảnh người việt hoặc châu á`;
       appendLog(itemId, `[IMAGE] Đang tìm ảnh trên Perplexity...`);
 
       const result = await window.electronAPI.searchPerplexityImages({
@@ -2079,7 +2079,7 @@ const App: React.FC = () => {
                           {agent.name}
                         </div>
                         <div className="text-[10px] text-slate-400 mt-1">
-                          {agent.config.steps.length} bước • {agent.config.model}
+                          {agent.config.steps.length} bước
                         </div>
                       </div>
                       <button
