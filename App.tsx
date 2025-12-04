@@ -96,6 +96,7 @@ const App: React.FC = () => {
   const [editingOutput, setEditingOutput] = useState<{ itemId: string; stepId: string; content: string } | null>(null);
   const [rerunStepId, setRerunStepId] = useState<string | null>(null);
   const [imageGallery, setImageGallery] = useState<{ itemId: string; stepId: string; imageIndex: number; images: string[]; currentSelected: number } | null>(null);
+  const [scrollToStepId, setScrollToStepId] = useState<string | null>(null);
 
   // --- Init ---
   useEffect(() => {
@@ -150,6 +151,19 @@ const App: React.FC = () => {
       localStorage.setItem('promptflow_queue', JSON.stringify(queue));
     }
   }, [queue, mode]);
+
+  // Scroll to step when scrollToStepId changes
+  useEffect(() => {
+    if (scrollToStepId) {
+      setTimeout(() => {
+        const element = document.getElementById(`step-detail-${scrollToStepId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        setScrollToStepId(null);
+      }, 300); // Wait for detail panel animation
+    }
+  }, [scrollToStepId]);
 
   // --- Helpers ---
   const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -2218,7 +2232,12 @@ const App: React.FC = () => {
                               <td
                                  key={step.id}
                                  className="p-3 text-sm text-slate-600 align-top border-l border-slate-50 w-80 cursor-pointer hover:bg-indigo-50/80 transition-colors"
-                                 onClick={() => setSelectedItemId(item.id)}
+                                 onClick={() => {
+                                   setSelectedItemId(item.id);
+                                   if (result) {
+                                     setScrollToStepId(step.id);
+                                   }
+                                 }}
                               >
                                  {result ? (
                                     <div className="max-h-20 overflow-hidden text-ellipsis line-clamp-3" title={result.response}>
@@ -2270,7 +2289,7 @@ const App: React.FC = () => {
                    {/* Steps Timeline */}
                    <div className="p-4 space-y-6">
                       {selectedItem.results.map((result, idx) => (
-                         <div key={idx} className="relative pl-6 border-l-2 border-indigo-200 last:border-0 pb-6 last:pb-0">
+                         <div key={idx} id={`step-detail-${result.stepId}`} className="relative pl-6 border-l-2 border-indigo-200 last:border-0 pb-6 last:pb-0 scroll-mt-4">
                             {/* Step Node */}
                             <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-indigo-500 border-2 border-white shadow-sm"></div>
                             
