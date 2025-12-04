@@ -2427,7 +2427,7 @@ const App: React.FC = () => {
                             {/* Response Received */}
                             <div>
                               <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Kết quả</div>
-                              <div className="text-sm text-slate-800 bg-white border border-indigo-100 p-3 rounded-lg shadow-sm prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: result.response }} />
+                              <div className="text-sm text-slate-800 bg-white border border-indigo-100 p-3 rounded-lg shadow-sm html-content" dangerouslySetInnerHTML={{ __html: result.response }} />
 
                               {/* Image Gallery */}
                               {result.imageData && result.imageData.length > 0 && (
