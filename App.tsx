@@ -2378,7 +2378,7 @@ const App: React.FC = () => {
 
                {/* Detail Panel */}
                <div
-                 className={`w-[500px] border-l border-slate-200 bg-white flex flex-col shadow-xl z-30 ${
+                 className={`fixed right-0 top-0 bottom-0 w-[500px] border-l border-slate-200 bg-white flex flex-col shadow-xl z-30 ${
                    isDetailPanelClosing
                      ? 'animate-slide-out-right'
                      : 'animate-slide-in-right'
