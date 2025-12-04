@@ -2286,7 +2286,7 @@ const App: React.FC = () => {
                      </th>
                      <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-12 sticky left-10 bg-slate-100 z-20">#</th>
                      <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-[140px] min-w-[140px] sticky left-[88px] bg-slate-100 z-20 whitespace-nowrap">Trạng thái</th>
-                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 min-w-[200px] w-64">Input Gốc</th>
+                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 min-w-[200px] w-64 sticky left-[228px] bg-slate-100 z-20">Input Gốc</th>
                      {config.steps.map(step => (
                         <th key={step.id} className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 min-w-[250px] w-80">
                            <div className="flex items-center space-x-1">
@@ -2323,7 +2323,7 @@ const App: React.FC = () => {
                         <td className="p-3 sticky left-[88px] bg-white z-10 whitespace-nowrap cursor-pointer" onClick={() => setSelectedItemId(item.id)}>
                            <StatusBadge status={item.status} />
                         </td>
-                        <td className="p-3 text-sm text-slate-800 font-medium min-w-[200px] w-64 align-top cursor-pointer" onClick={() => setSelectedItemId(item.id)}>
+                        <td className="p-3 text-sm text-slate-800 font-medium min-w-[200px] w-64 align-top cursor-pointer sticky left-[228px] bg-white z-10" onClick={() => setSelectedItemId(item.id)}>
                            <div className="break-words whitespace-normal">{item.originalPrompt}</div>
                         </td>
 
@@ -2378,7 +2378,7 @@ const App: React.FC = () => {
 
                {/* Detail Panel */}
                <div
-                 className={`w-[500px] border-l border-slate-200 bg-white flex flex-col shadow-xl z-30 ${
+                 className={`fixed right-0 top-0 bottom-0 w-[500px] border-l border-slate-200 bg-white flex flex-col shadow-xl z-30 ${
                    isDetailPanelClosing
                      ? 'animate-slide-out-right'
                      : 'animate-slide-in-right'
