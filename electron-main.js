@@ -979,7 +979,8 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless }) =>
           console.log('Found', imageContainers.length, 'potential images');
 
           // Click on each image to get full-size URL
-          for (let i = 0; i < Math.min(imageContainers.length, 10); i++) {
+          // Check up to 20 images to find 10 that meet width > 600px requirement
+          for (let i = 0; i < Math.min(imageContainers.length, 20) && imageUrls.length < 10; i++) {
             try {
               const imgElement = imageContainers[i];
 
@@ -990,8 +991,18 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless }) =>
               console.log('Clicked image', i + 1);
               await sleep(800); // Wait for modal/preview to open
 
+              // Scroll inside modal to load more images in carousel
+              console.log('Scrolling in modal to load more images...');
+              for (let scrollAttempt = 0; scrollAttempt < 2; scrollAttempt++) {
+                // Try to find and scroll the modal container
+                const modalContainer = document.querySelector('[role="dialog"], .modal, [class*="modal"]') || document.body;
+                modalContainer.scrollBy(0, 300);
+                await sleep(1500); // Wait for images to load
+              }
+
               // Try to find full-size image in modal/preview
               let fullSizeUrl = null;
+              let imageWidth = 0;
 
               // Method 1: Look for larger image in modal
               const modalImages = document.querySelectorAll('img[src*="http"]');
@@ -1004,32 +1015,36 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless }) =>
                     !src.includes('logo') &&
                     modalImg.naturalWidth > 600) { // Check if it's a larger image
                   fullSizeUrl = src;
+                  imageWidth = modalImg.naturalWidth;
+                  console.log('Found image with width:', imageWidth);
                   break;
                 }
               }
 
-              // Method 2: Check for srcset attribute
+              // Method 2: Check for srcset attribute (with width validation)
               if (!fullSizeUrl) {
                 for (const modalImg of modalImages) {
                   const srcset = modalImg.getAttribute('srcset');
-                  if (srcset) {
+                  if (srcset && modalImg.naturalWidth > 600) {
                     // Parse srcset and get the largest image
                     const sources = srcset.split(',').map(s => s.trim().split(' ')[0]);
                     if (sources.length > 0) {
                       fullSizeUrl = sources[sources.length - 1]; // Get last (usually largest)
+                      imageWidth = modalImg.naturalWidth;
+                      console.log('Found image from srcset with width:', imageWidth);
                     }
                   }
                 }
               }
 
-              // Method 3: Fallback to original src if no better option
-              if (!fullSizeUrl) {
-                fullSizeUrl = imgElement.src;
-              }
-
-              if (fullSizeUrl && !imageUrls.includes(fullSizeUrl)) {
+              // Only add images that meet width requirement (> 600px)
+              if (fullSizeUrl && imageWidth > 600 && !imageUrls.includes(fullSizeUrl)) {
                 imageUrls.push(fullSizeUrl);
-                console.log('Extracted full-size URL:', fullSizeUrl.substring(0, 80) + '...');
+                console.log('Extracted full-size URL (width: ' + imageWidth + 'px):', fullSizeUrl.substring(0, 80) + '...');
+              } else if (!fullSizeUrl) {
+                console.log('Skipped image', i + 1, '- no image with width > 600px found');
+              } else if (imageWidth <= 600) {
+                console.log('Skipped image', i + 1, '- width too small:', imageWidth + 'px');
               }
 
               // Close modal/preview (press Escape)
