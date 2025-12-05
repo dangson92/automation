@@ -769,6 +769,11 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless }) =>
     }
   });
 
+  // Set a realistic user agent to avoid bot detection
+  workerWindow.webContents.setUserAgent(
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+  );
+
   currentWorkerWindow = workerWindow;
 
   workerWindow.webContents.on('console-message', (event, level, message) => {
@@ -777,7 +782,10 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless }) =>
       'Third-party cookie will be blocked',
       'Third-Party Cookie',
       'Unrecognized feature: \'attribution-reporting\'',
-      'attribution-reporting'
+      'attribution-reporting',
+      'CORS policy',
+      'Access-Control-Allow-Origin',
+      'cloudflareaccess.com'
     ];
     for (const s of suppress) {
       if (msg.includes(s)) return;
@@ -789,13 +797,21 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless }) =>
     console.log('Loading Perplexity...');
     await workerWindow.loadURL('https://www.perplexity.ai/');
 
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Wait longer to allow Cloudflare challenges to complete
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
     const result = await workerWindow.webContents.executeJavaScript(`
       (async () => {
         try {
           const sleep = (ms) => new Promise(r => setTimeout(r, ms));
           const query = ${JSON.stringify(query)};
+
+          // Check if we're on a Cloudflare Access page
+          if (document.body.textContent.includes('Cloudflare Access') ||
+              document.body.textContent.includes('cloudflareaccess.com') ||
+              window.location.href.includes('cloudflareaccess.com')) {
+            return { error: 'Perplexity đang được bảo vệ bởi Cloudflare Access. Vui lòng đăng nhập vào Perplexity trong một tab riêng trước, sau đó thử lại.' };
+          }
 
           console.log('Starting Perplexity image search...');
 
