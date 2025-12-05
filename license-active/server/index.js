@@ -10,17 +10,27 @@ import adminRouter from './modules/admin.js'
 import activateRouter from './modules/activate.js'
 
 const app = express()
-app.use(express.json())
 
+// CORS must be FIRST - before any other middleware
 // CORS configuration for frontend domain
 const corsOptions = {
   origin: process.env.FRONTEND_URL || 'https://license.dangthanhson.com',
   credentials: true,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Length', 'X-Request-Id'],
+  maxAge: 86400 // 24 hours
 }
 app.use(cors(corsOptions))
 
-app.use(helmet())
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions))
+
+app.use(express.json())
+app.use(helmet({
+  crossOriginResourcePolicy: false, // Don't block cross-origin requests
+}))
 app.use(morgan('combined'))
 
 const activateLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 })
