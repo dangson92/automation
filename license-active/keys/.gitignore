@@ -1,0 +1,11 @@
+# Ignore all private keys
+*.pem
+*.key
+
+# Keep public keys (optional - can be committed)
+!public.pem
+
+# Keep README and .gitkeep
+!README.md
+!.gitkeep
+!.gitignore
