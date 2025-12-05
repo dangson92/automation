@@ -1,7 +1,8 @@
 /**
  * RSA Keys Configuration
  *
- * Loads RSA private/public keys from files for JWT signing/verification
+ * Loads RSA private/public keys from files or environment variables
+ * Priority: File-based (Option 2) → Env-based (Option 1)
  */
 
 import fs from 'fs'
@@ -12,37 +13,57 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 /**
  * Load private key from file
- * Default path: license-active/keys/private.pem
- * Override with PRIVATE_KEY_PATH env variable
+ * Uses PRIVATE_KEY_PATH env variable or default keys/private.pem
  */
 let privateKey
-try {
-  const privateKeyPath = process.env.PRIVATE_KEY_PATH || path.join(__dirname, '../../keys/private.pem')
-  privateKey = fs.readFileSync(privateKeyPath, 'utf8')
-  console.log('✓ Private key loaded from:', privateKeyPath)
-} catch (error) {
-  console.error('✗ Failed to load private key:', error.message)
-  console.error('Please ensure:')
-  console.error('  1. Private key file exists at:', process.env.PRIVATE_KEY_PATH || 'license-active/keys/private.pem')
-  console.error('  2. File has correct permissions (600)')
-  console.error('  3. Or set PRIVATE_KEY_PATH in .env')
-  process.exit(1)
+
+if (process.env.PRIVATE_KEY_PATH) {
+  try {
+    privateKey = fs.readFileSync(process.env.PRIVATE_KEY_PATH, 'utf8')
+    console.log('✓ Private key loaded from file:', process.env.PRIVATE_KEY_PATH)
+  } catch (error) {
+    console.error('✗ Failed to load private key from file:', error.message)
+    process.exit(1)
+  }
+} else {
+  const defaultPath = path.join(__dirname, '../../keys/private.pem')
+  if (fs.existsSync(defaultPath)) {
+    try {
+      privateKey = fs.readFileSync(defaultPath, 'utf8')
+      console.log('✓ Private key loaded from default file:', defaultPath)
+    } catch (error) {
+      console.error('✗ Failed to load private key from default file:', error.message)
+      process.exit(1)
+    }
+  } else {
+    console.error('✗ No private key found!')
+    console.error('Please create file at keys/private.pem or set PRIVATE_KEY_PATH')
+    process.exit(1)
+  }
 }
 
 /**
  * Load public key from file (optional, for verification if needed)
- * Default path: license-active/keys/public.pem
- * Override with PUBLIC_KEY_PATH env variable
  */
 let publicKey
-try {
-  const publicKeyPath = process.env.PUBLIC_KEY_PATH || path.join(__dirname, '../../keys/public.pem')
-  if (fs.existsSync(publicKeyPath)) {
-    publicKey = fs.readFileSync(publicKeyPath, 'utf8')
-    console.log('✓ Public key loaded from:', publicKeyPath)
+
+if (process.env.PUBLIC_KEY_PATH) {
+  try {
+    publicKey = fs.readFileSync(process.env.PUBLIC_KEY_PATH, 'utf8')
+    console.log('✓ Public key loaded from file:', process.env.PUBLIC_KEY_PATH)
+  } catch (error) {
+    console.warn('⚠ Public key file not found (optional)')
   }
-} catch (error) {
-  console.warn('⚠ Public key not loaded (optional):', error.message)
+} else {
+  const defaultPubPath = path.join(__dirname, '../../keys/public.pem')
+  if (fs.existsSync(defaultPubPath)) {
+    try {
+      publicKey = fs.readFileSync(defaultPubPath, 'utf8')
+      console.log('✓ Public key loaded from default file:', defaultPubPath)
+    } catch (error) {
+      // Silent fail for public key (optional)
+    }
+  }
 }
 
 export { privateKey, publicKey }
