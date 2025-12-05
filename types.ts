@@ -56,6 +56,8 @@ export interface QueueItem {
   finalResponse?: string; // The output of the last step
   error?: string;
   logs?: string[];
+  startTime?: number; // Timestamp when queue item started running
+  endTime?: number; // Timestamp when queue item completed or failed
 }
 
 export interface AppConfig {

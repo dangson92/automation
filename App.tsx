@@ -1077,7 +1077,7 @@ const App: React.FC = () => {
       let currentItem = queue.find(i => i.id === id);
       if (!currentItem) continue;
 
-      updateItemStatus(id, { status: Status.RUNNING });
+      updateItemStatus(id, { status: Status.RUNNING, startTime: Date.now() });
 
       let startIndex = currentItem.currentStepIndex || 0;
       let previousResult = startIndex > 0 && currentItem.results[startIndex - 1]
@@ -1236,13 +1236,15 @@ const App: React.FC = () => {
         }
 
         if (!stopRef.current) {
-          updateItemStatus(id, { status: Status.COMPLETED });
-          appendLog(id, "Hoàn tất quy trình.");
+          const endTime = Date.now();
+          const elapsedSeconds = currentItem.startTime ? ((endTime - currentItem.startTime) / 1000).toFixed(1) : '?';
+          updateItemStatus(id, { status: Status.COMPLETED, endTime });
+          appendLog(id, `Hoàn tất quy trình. (Thời gian: ${elapsedSeconds}s)`);
         }
 
       } catch (err: any) {
         appendLog(id, `LỖI: ${err.message}`);
-        updateItemStatus(id, { status: Status.FAILED, error: err.message });
+        updateItemStatus(id, { status: Status.FAILED, error: err.message, endTime: Date.now() });
       }
       setProgress(Math.min(100, Math.round((completedStepsTotal / totalSteps) * 100)));
     }
@@ -2328,7 +2330,14 @@ const App: React.FC = () => {
                         </td>
                         <td className="p-3 text-xs font-mono text-slate-400 sticky left-10 bg-white z-10 cursor-pointer" onClick={() => setSelectedItemId(item.id)}>{idx + 1}</td>
                         <td className="p-3 sticky left-[88px] bg-white z-10 whitespace-nowrap cursor-pointer" onClick={() => setSelectedItemId(item.id)}>
-                           <StatusBadge status={item.status} />
+                           <div className="flex flex-col gap-1">
+                             <StatusBadge status={item.status} />
+                             {item.startTime && item.endTime && (
+                               <span className="text-[10px] text-green-600 font-semibold">
+                                 {((item.endTime - item.startTime) / 1000).toFixed(1)}s
+                               </span>
+                             )}
+                           </div>
                         </td>
                         <td className="p-3 text-sm text-slate-800 font-medium min-w-[200px] w-64 align-top cursor-pointer sticky left-[228px] bg-white z-10" onClick={() => setSelectedItemId(item.id)}>
                            <div className="break-words whitespace-normal">{item.originalPrompt}</div>
@@ -2400,6 +2409,11 @@ const App: React.FC = () => {
                      <div>
                         <h3 className="font-semibold text-slate-700">Chi tiết</h3>
                         <p className="text-xs text-slate-500 mb-1">ID: {selectedItem.id}</p>
+                        {selectedItem.startTime && selectedItem.endTime && (
+                          <p className="text-xs text-green-600 font-semibold mb-1">
+                            ⏱️ Thời gian chạy: {((selectedItem.endTime - selectedItem.startTime) / 1000).toFixed(1)}s
+                          </p>
+                        )}
                         <button
                           onClick={() => handleResetItem(selectedItem.id)}
                           className="flex items-center space-x-1 text-xs text-blue-600 hover:text-blue-700 transition-colors"

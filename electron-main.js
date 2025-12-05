@@ -769,6 +769,11 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless }) =>
     }
   });
 
+  // Set a realistic user agent to avoid bot detection
+  workerWindow.webContents.setUserAgent(
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+  );
+
   currentWorkerWindow = workerWindow;
 
   workerWindow.webContents.on('console-message', (event, level, message) => {
@@ -777,7 +782,10 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless }) =>
       'Third-party cookie will be blocked',
       'Third-Party Cookie',
       'Unrecognized feature: \'attribution-reporting\'',
-      'attribution-reporting'
+      'attribution-reporting',
+      'CORS policy',
+      'Access-Control-Allow-Origin',
+      'cloudflareaccess.com'
     ];
     for (const s of suppress) {
       if (msg.includes(s)) return;
@@ -789,13 +797,21 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless }) =>
     console.log('Loading Perplexity...');
     await workerWindow.loadURL('https://www.perplexity.ai/');
 
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Wait longer to allow Cloudflare challenges to complete
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
     const result = await workerWindow.webContents.executeJavaScript(`
       (async () => {
         try {
           const sleep = (ms) => new Promise(r => setTimeout(r, ms));
           const query = ${JSON.stringify(query)};
+
+          // Check if we're on a Cloudflare Access page
+          if (document.body.textContent.includes('Cloudflare Access') ||
+              document.body.textContent.includes('cloudflareaccess.com') ||
+              window.location.href.includes('cloudflareaccess.com')) {
+            return { error: 'Perplexity đang được bảo vệ bởi Cloudflare Access. Vui lòng đăng nhập vào Perplexity trong một tab riêng trước, sau đó thử lại.' };
+          }
 
           console.log('Starting Perplexity image search...');
 
@@ -963,7 +979,8 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless }) =>
           console.log('Found', imageContainers.length, 'potential images');
 
           // Click on each image to get full-size URL
-          for (let i = 0; i < Math.min(imageContainers.length, 10); i++) {
+          // Check up to 20 images to find 10 that meet width > 600px requirement
+          for (let i = 0; i < Math.min(imageContainers.length, 20) && imageUrls.length < 10; i++) {
             try {
               const imgElement = imageContainers[i];
 
@@ -974,8 +991,18 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless }) =>
               console.log('Clicked image', i + 1);
               await sleep(800); // Wait for modal/preview to open
 
+              // Scroll inside modal to load more images in carousel
+              console.log('Scrolling in modal to load more images...');
+              for (let scrollAttempt = 0; scrollAttempt < 2; scrollAttempt++) {
+                // Try to find and scroll the modal container
+                const modalContainer = document.querySelector('[role="dialog"], .modal, [class*="modal"]') || document.body;
+                modalContainer.scrollBy(0, 300);
+                await sleep(1500); // Wait for images to load
+              }
+
               // Try to find full-size image in modal/preview
               let fullSizeUrl = null;
+              let imageWidth = 0;
 
               // Method 1: Look for larger image in modal
               const modalImages = document.querySelectorAll('img[src*="http"]');
@@ -988,32 +1015,36 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless }) =>
                     !src.includes('logo') &&
                     modalImg.naturalWidth > 600) { // Check if it's a larger image
                   fullSizeUrl = src;
+                  imageWidth = modalImg.naturalWidth;
+                  console.log('Found image with width:', imageWidth);
                   break;
                 }
               }
 
-              // Method 2: Check for srcset attribute
+              // Method 2: Check for srcset attribute (with width validation)
               if (!fullSizeUrl) {
                 for (const modalImg of modalImages) {
                   const srcset = modalImg.getAttribute('srcset');
-                  if (srcset) {
+                  if (srcset && modalImg.naturalWidth > 600) {
                     // Parse srcset and get the largest image
                     const sources = srcset.split(',').map(s => s.trim().split(' ')[0]);
                     if (sources.length > 0) {
                       fullSizeUrl = sources[sources.length - 1]; // Get last (usually largest)
+                      imageWidth = modalImg.naturalWidth;
+                      console.log('Found image from srcset with width:', imageWidth);
                     }
                   }
                 }
               }
 
-              // Method 3: Fallback to original src if no better option
-              if (!fullSizeUrl) {
-                fullSizeUrl = imgElement.src;
-              }
-
-              if (fullSizeUrl && !imageUrls.includes(fullSizeUrl)) {
+              // Only add images that meet width requirement (> 600px)
+              if (fullSizeUrl && imageWidth > 600 && !imageUrls.includes(fullSizeUrl)) {
                 imageUrls.push(fullSizeUrl);
-                console.log('Extracted full-size URL:', fullSizeUrl.substring(0, 80) + '...');
+                console.log('Extracted full-size URL (width: ' + imageWidth + 'px):', fullSizeUrl.substring(0, 80) + '...');
+              } else if (!fullSizeUrl) {
+                console.log('Skipped image', i + 1, '- no image with width > 600px found');
+              } else if (imageWidth <= 600) {
+                console.log('Skipped image', i + 1, '- width too small:', imageWidth + 'px');
               }
 
               // Close modal/preview (press Escape)
