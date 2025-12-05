@@ -997,8 +997,8 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless, conv
           }
 
           // Scroll the container multiple times
-          for (let i = 0; i < 5; i++) {
-            console.log(`Scroll attempt ${i + 1}/5...`);
+          for (let i = 0; i < 2; i++) {
+            console.log(`Scroll attempt ${i + 1}/2...`);
 
             // Try different scroll methods for better compatibility
             if (scrollContainer === document.body || scrollContainer === window) {
