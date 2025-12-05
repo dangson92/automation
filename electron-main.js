@@ -1272,8 +1272,8 @@ function showLicenseWindow() {
     <input
       type="text"
       id="licenseKey"
-      placeholder="XXXX-XXXX-XXXX-XXXX"
-      maxlength="19"
+      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+      maxlength="36"
     />
     <button id="activateBtn">Activate</button>
     <div id="message"></div>
@@ -1284,19 +1284,47 @@ function showLicenseWindow() {
     const btn = document.getElementById('activateBtn');
     const message = document.getElementById('message');
 
-    // Format license key input
+    // Format license key input (UUID format: 8-4-4-4-12)
     input.addEventListener('input', (e) => {
-      let value = e.target.value.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-      let formatted = value.match(/.{1,4}/g)?.join('-') || value;
-      e.target.value = formatted;
+      let value = e.target.value.replace(/[^A-Fa-f0-9]/g, '').toLowerCase();
+
+      // Format as UUID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+      if (value.length > 0) {
+        const parts = [];
+        if (value.length > 8) parts.push(value.substring(0, 8));
+        else parts.push(value);
+
+        if (value.length > 8) {
+          if (value.length > 12) parts.push(value.substring(8, 12));
+          else parts.push(value.substring(8));
+        }
+
+        if (value.length > 12) {
+          if (value.length > 16) parts.push(value.substring(12, 16));
+          else parts.push(value.substring(12));
+        }
+
+        if (value.length > 16) {
+          if (value.length > 20) parts.push(value.substring(16, 20));
+          else parts.push(value.substring(16));
+        }
+
+        if (value.length > 20) {
+          parts.push(value.substring(20, 32));
+        }
+
+        e.target.value = parts.join('-');
+      } else {
+        e.target.value = '';
+      }
     });
 
     btn.addEventListener('click', async () => {
       const licenseKey = input.value.replace(/-/g, '');
 
-      if (licenseKey.length !== 16) {
+      if (licenseKey.length !== 32) {
         message.className = 'error';
-        message.textContent = 'Please enter a valid license key (16 characters)';
+        message.textContent = 'Please enter a valid license key (UUID format)';
         return;
       }
 
