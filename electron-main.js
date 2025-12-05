@@ -985,12 +985,12 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless, conv
               }
             }
 
-            console.log('Scrolled window and ' + scrolledCount + ' divs');
-            await sleep(1500);
+            console.log('Scrolled window and ' + scrolledCount + ' divs, waiting 5s for images to load...');
+            await sleep(5000);
           }
 
           console.log('Finished scrolling, waiting for images to settle...');
-          await sleep(2000);
+          await sleep(3000);
 
           // 7. Extract full-size image URLs by clicking each image
           console.log('Extracting full-size image URLs...');

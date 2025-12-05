@@ -2355,8 +2355,8 @@ const App: React.FC = () => {
                              )}
                            </div>
                         </td>
-                        <td className="p-3 text-sm text-slate-800 font-medium min-w-[200px] w-64 align-top cursor-pointer sticky left-[228px] bg-white z-10" onClick={() => setSelectedItemId(item.id)}>
-                           <div className="break-words whitespace-normal">{item.originalPrompt}</div>
+                        <td className="p-3 text-sm text-slate-800 font-medium min-w-[250px] max-w-[400px] align-top cursor-pointer sticky left-[228px] bg-white z-10" onClick={() => setSelectedItemId(item.id)}>
+                           <div className="break-words whitespace-normal line-clamp-3">{item.originalPrompt}</div>
                         </td>
 
                         {config.steps.map((step, sIdx) => {
@@ -2366,7 +2366,7 @@ const App: React.FC = () => {
                            return (
                               <td
                                  key={step.id}
-                                 className="p-3 text-sm text-slate-600 align-top border-l border-slate-50 min-w-[250px] w-80 cursor-pointer hover:bg-indigo-50/80 transition-colors"
+                                 className="p-3 text-sm text-slate-600 align-top border-l border-slate-50 min-w-[300px] max-w-[500px] cursor-pointer hover:bg-indigo-50/80 transition-colors"
                                  onClick={() => {
                                    setSelectedItemId(item.id);
                                    if (result) {
@@ -2375,7 +2375,7 @@ const App: React.FC = () => {
                                  }}
                               >
                                  {result ? (
-                                    <div className="max-h-20 overflow-hidden line-clamp-3 break-words" title={result.response}>
+                                    <div className="max-h-32 overflow-hidden line-clamp-4 break-words" title={result.response}>
                                        {result.response}
                                     </div>
                                  ) : isCurrent ? (
