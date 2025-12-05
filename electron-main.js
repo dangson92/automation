@@ -30,7 +30,7 @@ app.whenReady().then(async () => {
 
     licenseManager = new LicenseManager({
       serverUrl: 'https://api.dangthanhson.com', // Thay đổi URL server của bạn
-      appCode: 'PROMPTFLOW_DESKTOP', // Mã app trong database
+      appCode: 'content-auto-sondang', // Mã app trong database
       appVersion: '1.0.0',
       publicKey: publicKey,
       configDir: path.join(app.getPath('userData'), 'license')
