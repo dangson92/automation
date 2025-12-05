@@ -1,8 +1,11 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const LicenseManager = require('./license-manager');
 
 let mainWindow;
+let licenseManager;
+let licenseWindow;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -19,8 +22,20 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
 }
 
-app.whenReady().then(() => {
-  createWindow();
+app.whenReady().then(async () => {
+  // Initialize license manager
+  licenseManager = new LicenseManager();
+
+  // Check license first
+  const verification = licenseManager.verifyLicense();
+
+  if (!verification.valid) {
+    // Show license activation window
+    await showLicenseWindow();
+  } else {
+    // License valid, proceed to main app
+    createWindow();
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -1126,5 +1141,239 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless, conv
     }
     currentWorkerWindow = null;
     return { error: err.message };
+  }
+});
+
+// --- LICENSE MANAGEMENT ---
+
+/**
+ * Show license activation window
+ */
+function showLicenseWindow() {
+  return new Promise((resolve) => {
+    licenseWindow = new BrowserWindow({
+      width: 500,
+      height: 400,
+      resizable: false,
+      frame: true,
+      webPreferences: {
+        preload: path.join(__dirname, 'electron-preload.js'),
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+
+    // Create simple HTML for license activation
+    const licenseHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>License Activation</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 40px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+      max-width: 400px;
+      width: 100%;
+    }
+    h1 {
+      margin: 0 0 20px 0;
+      font-size: 24px;
+      color: #333;
+    }
+    p {
+      color: #666;
+      margin-bottom: 20px;
+    }
+    input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 14px;
+      box-sizing: border-box;
+      margin-bottom: 15px;
+      font-family: monospace;
+    }
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    button:hover {
+      opacity: 0.9;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .error {
+      color: #e53e3e;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+    .success {
+      color: #38a169;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔑 License Activation</h1>
+    <p>Please enter your license key to activate PromptFlow Desktop.</p>
+    <input
+      type="text"
+      id="licenseKey"
+      placeholder="XXXX-XXXX-XXXX-XXXX"
+      maxlength="19"
+    />
+    <button id="activateBtn">Activate</button>
+    <div id="message"></div>
+  </div>
+
+  <script>
+    const input = document.getElementById('licenseKey');
+    const btn = document.getElementById('activateBtn');
+    const message = document.getElementById('message');
+
+    // Format license key input
+    input.addEventListener('input', (e) => {
+      let value = e.target.value.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+      let formatted = value.match(/.{1,4}/g)?.join('-') || value;
+      e.target.value = formatted;
+    });
+
+    btn.addEventListener('click', async () => {
+      const licenseKey = input.value.replace(/-/g, '');
+
+      if (licenseKey.length !== 16) {
+        message.className = 'error';
+        message.textContent = 'Please enter a valid license key (16 characters)';
+        return;
+      }
+
+      btn.disabled = true;
+      message.textContent = 'Activating...';
+      message.className = '';
+
+      try {
+        const result = await window.electronAPI.activateLicense(input.value);
+
+        if (result.success) {
+          message.className = 'success';
+          message.textContent = 'License activated successfully!';
+          setTimeout(() => {
+            window.electronAPI.licenseActivated();
+          }, 1500);
+        } else {
+          message.className = 'error';
+          message.textContent = result.error || 'Activation failed';
+          btn.disabled = false;
+        }
+      } catch (err) {
+        message.className = 'error';
+        message.textContent = 'Activation failed: ' + err.message;
+        btn.disabled = false;
+      }
+    });
+
+    // Allow Enter key to activate
+    input.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        btn.click();
+      }
+    });
+  </script>
+</body>
+</html>
+    `;
+
+    const htmlPath = path.join(app.getPath('userData'), 'license.html');
+    fs.writeFileSync(htmlPath, licenseHtml, 'utf8');
+
+    licenseWindow.loadFile(htmlPath);
+
+    licenseWindow.on('closed', () => {
+      licenseWindow = null;
+      resolve();
+    });
+  });
+}
+
+// IPC Handlers for license
+ipcMain.handle('license-activate', async (event, licenseKey) => {
+  if (!licenseManager) {
+    licenseManager = new LicenseManager();
+  }
+
+  const result = await licenseManager.activate(licenseKey);
+  return result;
+});
+
+ipcMain.handle('license-verify', async () => {
+  if (!licenseManager) {
+    licenseManager = new LicenseManager();
+  }
+
+  return licenseManager.verifyLicense();
+});
+
+ipcMain.handle('license-info', async () => {
+  if (!licenseManager) {
+    licenseManager = new LicenseManager();
+  }
+
+  return licenseManager.getLicenseInfo();
+});
+
+ipcMain.handle('license-remove', async () => {
+  if (!licenseManager) {
+    licenseManager = new LicenseManager();
+  }
+
+  licenseManager.removeLicense();
+  return { success: true };
+});
+
+ipcMain.handle('license-activated', async () => {
+  // Close license window and open main app
+  if (licenseWindow && !licenseWindow.isDestroyed()) {
+    licenseWindow.close();
+  }
+
+  // Verify license one more time
+  const verification = licenseManager.verifyLicense();
+
+  if (verification.valid) {
+    createWindow();
+    return { success: true };
+  } else {
+    return { success: false, error: 'License verification failed' };
   }
 });
