@@ -447,7 +447,43 @@ const App: React.FC = () => {
   const updateResultContent = (itemId: string, stepId: string, content: string) => {
     setQueue(prev => prev.map(item => {
       if (item.id !== itemId) return item;
-      const newResults = (item.results || []).map(r => r.stepId === stepId ? { ...r, response: content } : r);
+
+      const newResults = (item.results || []).map(r => {
+        if (r.stepId !== stepId) return { ...r, response: content };
+
+        // Sync imageData with actual images in the edited HTML
+        let syncedImageData = r.imageData;
+        if (r.imageData && r.imageData.length > 0) {
+          // Parse HTML to find all auto-generated images
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = content;
+          const imgElements = tempDiv.querySelectorAll('img.auto-generated-image');
+
+          // Create a map of current image URLs in HTML
+          const htmlImageUrls = Array.from(imgElements).map(img => (img as HTMLImageElement).src);
+
+          // Sync imageData: only keep images that exist in HTML and update their URLs
+          syncedImageData = r.imageData.map((imgData: any, idx: number) => {
+            // Find if this image still exists in HTML (by index position)
+            if (idx < htmlImageUrls.length) {
+              const currentUrlInHtml = htmlImageUrls[idx];
+              // If URL changed, update selectedImage and try to find its index in images array
+              if (currentUrlInHtml !== imgData.selectedImage) {
+                const newIndex = imgData.images.indexOf(currentUrlInHtml);
+                return {
+                  ...imgData,
+                  selectedImage: currentUrlInHtml,
+                  selectedIndex: newIndex >= 0 ? newIndex : imgData.selectedIndex
+                };
+              }
+            }
+            return imgData;
+          }).filter((_, idx) => idx < htmlImageUrls.length); // Remove imageData for deleted images
+        }
+
+        return { ...r, response: content, imageData: syncedImageData };
+      });
+
       const finalResponse = newResults.length ? newResults[newResults.length - 1].response : item.finalResponse;
       return { ...item, results: newResults, finalResponse };
     }));
@@ -1053,7 +1089,9 @@ const App: React.FC = () => {
       const selectedImage = images[randomIndex];
 
       // Replace shortcode with centered image tag
-      const imgTag = `<div style="text-align: center; margin: 1.5em 0;"><img src="${selectedImage}" alt="${shortcode}" class="auto-generated-image" style="max-width: 100%; height: auto; display: inline-block;" /></div>`;
+      // Use contextParagraph for alt text (truncated to 100 chars for better alt text)
+      const altText = contextParagraph.substring(0, 100).trim();
+      const imgTag = `<div style="text-align: center; margin: 1.5em 0;"><img src="${selectedImage}" alt="${altText}" class="auto-generated-image" style="max-width: 100%; height: auto; display: inline-block;" /></div>`;
       updatedResponse = updatedResponse.replace(shortcode, imgTag);
 
       // Save image data
