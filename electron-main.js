@@ -960,10 +960,57 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless, conv
           imageTab.click();
           await sleep(3000); // Wait for images to load
 
-          // 6. Scroll to load lazy images
+          // 6. Scroll to load lazy images - find the scrollable container
           console.log('Scrolling to load images in Images tab...');
+
+          // Try to find the scrollable container for images
+          const scrollContainerSelectors = [
+            'div[class*="image"]',
+            'div[class*="grid"]',
+            'div[class*="gallery"]',
+            'main',
+            '[role="main"]',
+            'div[class*="scroll"]',
+            'div[class*="content"]'
+          ];
+
+          let scrollContainer = null;
+          for (const sel of scrollContainerSelectors) {
+            const containers = document.querySelectorAll(sel);
+            for (const container of containers) {
+              // Check if this container is scrollable and contains images
+              if (container.scrollHeight > container.clientHeight || container.querySelector('img[src*="http"]')) {
+                scrollContainer = container;
+                console.log('Found scrollable container with selector:', sel);
+                break;
+              }
+            }
+            if (scrollContainer) break;
+          }
+
+          // If no specific container found, try to find parent of imageTab or use body
+          if (!scrollContainer) {
+            scrollContainer = imageTab.closest('[class*="content"]') ||
+                             imageTab.closest('main') ||
+                             document.body;
+            console.log('Using fallback scroll container');
+          }
+
+          // Scroll the container multiple times
           for (let i = 0; i < 5; i++) {
-            window.scrollBy(0, 800);
+            console.log(`Scroll attempt ${i + 1}/5...`);
+
+            // Try different scroll methods for better compatibility
+            if (scrollContainer === document.body || scrollContainer === window) {
+              window.scrollBy({ top: 800, behavior: 'smooth' });
+            } else {
+              scrollContainer.scrollTop += 800;
+              // Also try scrollBy if available
+              if (scrollContainer.scrollBy) {
+                scrollContainer.scrollBy({ top: 800, behavior: 'smooth' });
+              }
+            }
+
             await sleep(1500);
           }
 
