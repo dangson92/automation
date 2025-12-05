@@ -20,7 +20,7 @@ export const generateKeyInsights = async (keys: LicenseKey[]): Promise<string> =
       Active: ${activeCount}
       Valid (Unused): ${validCount}
       Revoked: ${revokedCount}
-      Plans: ${JSON.stringify(keys.map(k => k.plan))}
+      Plans: ${JSON.stringify(keys.map(k => k.appName))}
     `;
 
     const response = await ai.models.generateContent({
