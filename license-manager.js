@@ -1,247 +1,295 @@
 /**
- * License Manager for PromptFlow Desktop
- * Handles license validation and activation
+ * License Manager for Electron/Node Client
+ *
+ * Quản lý kích hoạt và xác thực license cho ứng dụng Electron/NodeJS
  */
 
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
-const crypto = require('crypto');
-const https = require('https');
-const http = require('http');
-const { app } = require('electron');
-
-// ===== CONFIGURATION =====
-const LICENSE_CONFIG = {
-  APP_CODE: 'PROMPTFLOW_DESKTOP',
-  APP_VERSION: '1.0.0',
-  SERVER_URL: 'https://api.dangthanhson.com', // Change this to your server URL
-
-  // RSA Public Key - paste your public key here
-  // Generated from: openssl rsa -in private.pem -pubout -out public.pem
-  PUBLIC_KEY: `-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA... YOUR PUBLIC KEY HERE ...
------END PUBLIC KEY-----`
-};
+const crypto = require('crypto')
+const os = require('os')
+const fs = require('fs')
+const path = require('path')
+const jwt = require('jsonwebtoken')
 
 class LicenseManager {
-  constructor() {
-    this.dataPath = this._getDataPath();
-    this.tokenPath = path.join(this.dataPath, 'license_token.json');
-    this.deviceId = this._getDeviceId();
+  constructor(config) {
+    this.serverUrl = config.serverUrl || 'https://api.dangthanhson.com'
+    this.appCode = config.appCode // Mã app (ví dụ: 'APP001')
+    this.appVersion = config.appVersion || '1.0.0'
+    this.publicKey = config.publicKey // RSA Public Key để verify token
+    this.configDir = config.configDir || this.getDefaultConfigDir()
 
-    // Ensure data directory exists
-    if (!fs.existsSync(this.dataPath)) {
-      fs.mkdirSync(this.dataPath, { recursive: true });
+    // Đảm bảo thư mục config tồn tại
+    if (!fs.existsSync(this.configDir)) {
+      fs.mkdirSync(this.configDir, { recursive: true })
+    }
+
+    this.deviceIdFile = path.join(this.configDir, 'device_id.txt')
+    this.tokenFile = path.join(this.configDir, 'license_token.json')
+  }
+
+  /**
+   * Lấy thư mục config mặc định theo platform
+   */
+  getDefaultConfigDir() {
+    const homeDir = os.homedir()
+    switch (process.platform) {
+      case 'win32':
+        return path.join(process.env.APPDATA || homeDir, 'PromptFlow')
+      case 'darwin':
+        return path.join(homeDir, 'Library', 'Application Support', 'PromptFlow')
+      default:
+        return path.join(homeDir, '.promptflow')
     }
   }
 
   /**
-   * Get data path for storing license
+   * Tạo Device ID duy nhất dựa trên thông tin phần cứng
+   * Device ID này sẽ được lưu lại và tái sử dụng
    */
-  _getDataPath() {
-    const userDataPath = app.getPath('userData');
-    return path.join(userDataPath, 'license');
+  generateDeviceId() {
+    // Lấy thông tin phần cứng
+    const hostname = os.hostname()
+    const username = os.userInfo().username
+    const platform = os.platform()
+    const arch = os.arch()
+
+    // Lấy MAC address của network interface đầu tiên
+    let macAddress = 'unknown'
+    const networkInterfaces = os.networkInterfaces()
+    for (const name in networkInterfaces) {
+      const iface = networkInterfaces[name].find(i => !i.internal && i.mac !== '00:00:00:00:00:00')
+      if (iface && iface.mac) {
+        macAddress = iface.mac
+        break
+      }
+    }
+
+    // Tạo chuỗi duy nhất từ các thông tin trên
+    const deviceString = `${hostname}|${username}|${platform}|${arch}|${macAddress}`
+
+    // Hash lại để tạo Device ID
+    const hash = crypto.createHash('sha256')
+    hash.update(deviceString)
+    hash.update('device-salt-key') // Salt thêm để tăng độ bảo mật
+
+    return hash.digest('hex')
   }
 
   /**
-   * Generate unique device ID
+   * Lấy hoặc tạo Device ID
+   * Nếu đã có file device_id.txt thì đọc từ file, nếu không thì tạo mới
    */
-  _getDeviceId() {
-    const systemInfo = {
-      hostname: os.hostname(),
-      platform: os.platform(),
-      arch: os.arch(),
-      username: os.userInfo().username,
-      cpus: os.cpus()[0]?.model || 'unknown'
-    };
+  getOrCreateDeviceId() {
+    if (fs.existsSync(this.deviceIdFile)) {
+      return fs.readFileSync(this.deviceIdFile, 'utf8').trim()
+    }
 
-    const infoString = JSON.stringify(systemInfo);
-    return crypto.createHash('sha256').update(infoString).digest('hex');
+    const deviceId = this.generateDeviceId()
+    fs.writeFileSync(this.deviceIdFile, deviceId, 'utf8')
+    return deviceId
   }
 
   /**
-   * Activate license with server
+   * Kích hoạt license với server
+   * @param {string} licenseKey - License key từ admin
+   * @returns {Promise<Object>} - Token và thông tin license
    */
-  activate(licenseKey) {
-    return new Promise((resolve) => {
+  activateLicense(licenseKey) {
+    const deviceId = this.getOrCreateDeviceId()
+
+    return new Promise((resolve, reject) => {
+      const https = require('https')
+      const http = require('http')
+      const url = new URL(`${this.serverUrl}/activate`)
+
       const postData = JSON.stringify({
         licenseKey,
-        appCode: LICENSE_CONFIG.APP_CODE,
-        deviceId: this.deviceId,
-        appVersion: LICENSE_CONFIG.APP_VERSION
-      });
-
-      const url = new URL(LICENSE_CONFIG.SERVER_URL + '/activate');
-      const isHttps = url.protocol === 'https:';
-      const httpModule = isHttps ? https : http;
+        appCode: this.appCode,
+        deviceId,
+        appVersion: this.appVersion
+      })
 
       const options = {
         hostname: url.hostname,
-        port: url.port || (isHttps ? 443 : 80),
+        port: url.port || (url.protocol === 'https:' ? 443 : 80),
         path: url.pathname,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(postData)
         }
-      };
+      }
 
+      const httpModule = url.protocol === 'https:' ? https : http
       const req = httpModule.request(options, (res) => {
-        let data = '';
+        let data = ''
 
         res.on('data', (chunk) => {
-          data += chunk;
-        });
+          data += chunk
+        })
 
         res.on('end', () => {
           try {
-            const response = JSON.parse(data);
+            const response = JSON.parse(data)
 
-            if (res.statusCode === 200 && response.success) {
-              // Save token
-              const tokenData = {
-                token: response.token,
-                expiresAt: response.expiresAt,
-                licenseKey,
-                activatedAt: new Date().toISOString(),
-                license: response.license
-              };
-
-              fs.writeFileSync(
-                this.tokenPath,
-                JSON.stringify(tokenData, null, 2),
-                'utf8'
-              );
-
-              resolve({
-                success: true,
-                message: 'License activated successfully',
-                expiresAt: response.license.expiresAt
-              });
-            } else {
-              resolve({
-                success: false,
-                error: response.error || 'Activation failed'
-              });
+            if (res.statusCode !== 200) {
+              reject(new Error(response.error || 'Activation failed'))
+              return
             }
-          } catch (err) {
-            resolve({
-              success: false,
-              error: 'Invalid server response'
-            });
+
+            // Lưu token vào file
+            fs.writeFileSync(this.tokenFile, JSON.stringify(response, null, 2), 'utf8')
+
+            resolve(response)
+          } catch (error) {
+            reject(new Error('Invalid server response'))
           }
-        });
-      });
+        })
+      })
 
-      req.on('error', (err) => {
-        resolve({
-          success: false,
-          error: 'Cannot connect to license server: ' + err.message
-        });
-      });
+      req.on('error', (error) => {
+        reject(new Error(`License activation failed: ${error.message}`))
+      })
 
-      req.write(postData);
-      req.end();
-    });
+      req.write(postData)
+      req.end()
+    })
   }
 
   /**
-   * Verify license (simple version without JWT verification)
-   * In production, you should verify JWT signature with public key
+   * Đọc token từ file
+   * @returns {Object|null} - Token data hoặc null nếu không có
    */
-  verifyLicense() {
+  getStoredToken() {
+    if (!fs.existsSync(this.tokenFile)) {
+      return null
+    }
+
     try {
-      // Check if token file exists
-      if (!fs.existsSync(this.tokenPath)) {
+      const content = fs.readFileSync(this.tokenFile, 'utf8')
+      return JSON.parse(content)
+    } catch (error) {
+      return null
+    }
+  }
+
+  /**
+   * Xác thực token license
+   * @returns {Object} - { valid: boolean, payload: Object, error: string }
+   */
+  verifyLicenseToken() {
+    const tokenData = this.getStoredToken()
+
+    if (!tokenData || !tokenData.token) {
+      return {
+        valid: false,
+        error: 'No token found. Please activate license first.'
+      }
+    }
+
+    try {
+      // Verify JWT bằng Public Key
+      const payload = jwt.verify(tokenData.token, this.publicKey, {
+        algorithms: ['RS256']
+      })
+
+      // Kiểm tra appCode có khớp không
+      if (payload.appCode !== this.appCode) {
         return {
           valid: false,
-          error: 'No license found. Please activate your license.'
-        };
+          error: 'Token is for different app'
+        }
       }
 
-      // Read token data
-      const tokenData = JSON.parse(fs.readFileSync(this.tokenPath, 'utf8'));
+      // Kiểm tra deviceHash có khớp với deviceId hiện tại không
+      const currentDeviceId = this.getOrCreateDeviceId()
+      const expectedHash = this.hashDeviceId(currentDeviceId)
 
-      // Basic validation
-      if (!tokenData.token || !tokenData.licenseKey) {
+      if (payload.deviceHash !== expectedHash) {
         return {
           valid: false,
-          error: 'Invalid license data'
-        };
+          error: 'Token is bound to different device'
+        }
       }
 
-      // Check token expiration (30 days from activation)
-      const activatedAt = new Date(tokenData.activatedAt);
-      const now = new Date();
-      const daysSinceActivation = (now - activatedAt) / (1000 * 60 * 60 * 24);
-
-      if (daysSinceActivation > 30) {
+      // Kiểm tra license status
+      if (payload.licenseStatus !== 'active') {
         return {
           valid: false,
-          error: 'License token expired. Please re-activate your license.',
-          needReactivation: true
-        };
-      }
-
-      // Check license expiration
-      if (tokenData.license && tokenData.license.expiresAt) {
-        const expiresAt = new Date(tokenData.license.expiresAt);
-
-        if (expiresAt < now) {
-          return {
-            valid: false,
-            error: 'License has expired',
-            expiresAt: tokenData.license.expiresAt
-          };
+          error: 'License is not active'
         }
       }
 
       return {
         valid: true,
-        licenseKey: tokenData.licenseKey,
-        expiresAt: tokenData.license?.expiresAt,
-        activatedAt: tokenData.activatedAt
-      };
-
-    } catch (err) {
-      return {
-        valid: false,
-        error: 'License verification failed: ' + err.message
-      };
-    }
-  }
-
-  /**
-   * Get license info
-   */
-  getLicenseInfo() {
-    try {
-      if (!fs.existsSync(this.tokenPath)) {
-        return null;
+        payload
+      }
+    } catch (error) {
+      if (error.name === 'TokenExpiredError') {
+        return {
+          valid: false,
+          error: 'Token expired. Please re-activate license.'
+        }
       }
 
-      const tokenData = JSON.parse(fs.readFileSync(this.tokenPath, 'utf8'));
-
       return {
-        licenseKey: tokenData.licenseKey,
-        activatedAt: tokenData.activatedAt,
-        expiresAt: tokenData.license?.expiresAt
-      };
-
-    } catch (err) {
-      return null;
+        valid: false,
+        error: `Token verification failed: ${error.message}`
+      }
     }
   }
 
   /**
-   * Remove license
+   * Hash device ID theo cùng cách với server
+   * (Server dùng DEVICE_SALT từ .env)
+   * Client không cần biết DEVICE_SALT, chỉ cần để server verify
+   * Hàm này chỉ để demo, thực tế client không cần hash
    */
-  removeLicense() {
-    if (fs.existsSync(this.tokenPath)) {
-      fs.unlinkSync(this.tokenPath);
+  hashDeviceId(deviceId) {
+    // Lưu ý: Server sẽ hash với DEVICE_SALT
+    // Client không cần hash, chỉ gửi deviceId thô lên server
+    // Hàm này chỉ để demo kiểm tra
+    const hash = crypto.createHash('sha256')
+    hash.update(String(deviceId))
+    // Không có DEVICE_SALT ở client, server sẽ hash
+    return hash.digest('hex')
+  }
+
+  /**
+   * Xóa token (để force re-activate)
+   */
+  clearLicense() {
+    if (fs.existsSync(this.tokenFile)) {
+      fs.unlinkSync(this.tokenFile)
+    }
+  }
+
+  /**
+   * Kiểm tra và lấy trạng thái license
+   * @returns {Object} - { active: boolean, info: Object }
+   */
+  getLicenseStatus() {
+    const verification = this.verifyLicenseToken()
+
+    if (!verification.valid) {
+      return {
+        active: false,
+        error: verification.error
+      }
+    }
+
+    const tokenData = this.getStoredToken()
+
+    return {
+      active: true,
+      info: {
+        appCode: verification.payload.appCode,
+        expiresAt: tokenData.licenseInfo?.expires_at,
+        maxDevices: verification.payload.maxDevices,
+        tokenExpiresAt: tokenData.expiresAt
+      }
     }
   }
 }
 
-module.exports = LicenseManager;
+module.exports = LicenseManager

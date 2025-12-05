@@ -24,17 +24,39 @@ function createWindow() {
 
 app.whenReady().then(async () => {
   // Initialize license manager
-  licenseManager = new LicenseManager();
+  try {
+    const publicKeyPath = path.join(__dirname, 'keys', 'public.pem');
+    const publicKey = fs.readFileSync(publicKeyPath, 'utf8');
 
-  // Check license first
-  const verification = licenseManager.verifyLicense();
+    licenseManager = new LicenseManager({
+      serverUrl: 'https://api.dangthanhson.com', // Thay đổi URL server của bạn
+      appCode: 'PROMPTFLOW_DESKTOP', // Mã app trong database
+      appVersion: '1.0.0',
+      publicKey: publicKey,
+      configDir: path.join(app.getPath('userData'), 'license')
+    });
 
-  if (!verification.valid) {
-    // Show license activation window
-    await showLicenseWindow();
-  } else {
-    // License valid, proceed to main app
-    createWindow();
+    // Check license first
+    const verification = licenseManager.verifyLicenseToken();
+
+    if (!verification.valid) {
+      console.log('License invalid:', verification.error);
+      // Show license activation window
+      await showLicenseWindow();
+    } else {
+      console.log('License valid, starting app');
+      // License valid, proceed to main app
+      createWindow();
+    }
+  } catch (error) {
+    console.error('Failed to initialize license manager:', error.message);
+    // If public key not found, show error and exit
+    dialog.showErrorBox(
+      'License System Error',
+      'Failed to initialize license system. Please contact support.\n\nError: ' + error.message
+    );
+    app.quit();
+    return;
   }
 
   app.on('activate', () => {
@@ -1329,35 +1351,39 @@ function showLicenseWindow() {
 // IPC Handlers for license
 ipcMain.handle('license-activate', async (event, licenseKey) => {
   if (!licenseManager) {
-    licenseManager = new LicenseManager();
+    return { success: false, error: 'License manager not initialized' };
   }
 
-  const result = await licenseManager.activate(licenseKey);
-  return result;
+  try {
+    await licenseManager.activateLicense(licenseKey);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 });
 
 ipcMain.handle('license-verify', async () => {
   if (!licenseManager) {
-    licenseManager = new LicenseManager();
+    return { valid: false, error: 'License manager not initialized' };
   }
 
-  return licenseManager.verifyLicense();
+  return licenseManager.verifyLicenseToken();
 });
 
 ipcMain.handle('license-info', async () => {
   if (!licenseManager) {
-    licenseManager = new LicenseManager();
+    return null;
   }
 
-  return licenseManager.getLicenseInfo();
+  return licenseManager.getLicenseStatus();
 });
 
 ipcMain.handle('license-remove', async () => {
   if (!licenseManager) {
-    licenseManager = new LicenseManager();
+    return { success: false };
   }
 
-  licenseManager.removeLicense();
+  licenseManager.clearLicense();
   return { success: true };
 });
 
@@ -1368,7 +1394,7 @@ ipcMain.handle('license-activated', async () => {
   }
 
   // Verify license one more time
-  const verification = licenseManager.verifyLicense();
+  const verification = licenseManager.verifyLicenseToken();
 
   if (verification.valid) {
     createWindow();
