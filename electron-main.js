@@ -963,7 +963,7 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless }) =>
           console.log('Found', imageContainers.length, 'potential images');
 
           // Click on each image to get full-size URL
-          for (let i = 0; i < Math.min(imageContainers.length, 20); i++) {
+          for (let i = 0; i < Math.min(imageContainers.length, 10); i++) {
             try {
               const imgElement = imageContainers[i];
 
@@ -986,7 +986,7 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless }) =>
                     !src.includes('gravatar') &&
                     !src.includes('icon') &&
                     !src.includes('logo') &&
-                    modalImg.naturalWidth > 400) { // Check if it's a larger image
+                    modalImg.naturalWidth > 600) { // Check if it's a larger image
                   fullSizeUrl = src;
                   break;
                 }
@@ -1038,7 +1038,7 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless }) =>
 
           return {
             success: true,
-            images: imageUrls.slice(0, 20),
+            images: imageUrls.slice(0, 10),
             count: imageUrls.length
           };
 
