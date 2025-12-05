@@ -967,31 +967,40 @@ const App: React.FC = () => {
   };
 
   // Search images from Perplexity based on context
-  const searchImagesForContext = async (context: string, itemId: string): Promise<string[]> => {
+  const searchImagesForContext = async (context: string, itemId: string, conversationUrl?: string): Promise<{ images: string[]; conversationUrl?: string }> => {
     if (mode !== 'ELECTRON' || !window.electronAPI) {
       appendLog(itemId, '[IMAGE] Chỉ hỗ trợ tìm ảnh trong Desktop mode');
-      return [];
+      return { images: [] };
     }
 
     try {
       const query = `Dựa vào nội dung: ${context.substring(0, 200)}. Tìm ảnh không có watermark, ảnh chất lượng cao, ảnh người việt hoặc châu á`;
-      appendLog(itemId, `[IMAGE] Đang tìm ảnh trên Perplexity...`);
+
+      if (conversationUrl) {
+        appendLog(itemId, `[IMAGE] Tìm ảnh trên Perplexity (reusing conversation)...`);
+      } else {
+        appendLog(itemId, `[IMAGE] Tìm ảnh trên Perplexity (new conversation)...`);
+      }
 
       const result = await window.electronAPI.searchPerplexityImages({
         query,
-        headless
+        headless,
+        conversationUrl
       });
 
       if (result.error) {
         appendLog(itemId, `[IMAGE ERROR] ${result.error}`);
-        return [];
+        return { images: [] };
       }
 
       appendLog(itemId, `[IMAGE] Tìm thấy ${result.images?.length || 0} ảnh`);
-      return result.images || [];
+      return {
+        images: result.images || [],
+        conversationUrl: result.conversationUrl
+      };
     } catch (err: any) {
       appendLog(itemId, `[IMAGE ERROR] ${err.message}`);
-      return [];
+      return { images: [] };
     }
   };
 
@@ -1019,13 +1028,20 @@ const App: React.FC = () => {
 
     const imageData: any[] = [];
     let updatedResponse = stepResponse;
+    let conversationUrl: string | undefined;
 
     // Process each shortcode
     for (const { shortcode, contextParagraph } of shortcodePairs) {
       appendLog(itemId, `[IMAGE] Xử lý ${shortcode}...`);
 
-      // Search images based on context
-      const images = await searchImagesForContext(contextParagraph, itemId);
+      // Search images based on context, reusing conversation URL if available
+      const searchResult = await searchImagesForContext(contextParagraph, itemId, conversationUrl);
+      const images = searchResult.images;
+
+      // Update conversation URL for next iteration
+      if (searchResult.conversationUrl) {
+        conversationUrl = searchResult.conversationUrl;
+      }
 
       if (images.length === 0) {
         appendLog(itemId, `[IMAGE] Không tìm thấy ảnh cho ${shortcode}`);

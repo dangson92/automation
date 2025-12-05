@@ -756,8 +756,8 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
 });
 
 // Scrape images from Perplexity Images tab
-ipcMain.handle('perplexity-search-images', async (event, { query, headless }) => {
-  console.log('Searching Perplexity images for:', query, 'Headless:', headless);
+ipcMain.handle('perplexity-search-images', async (event, { query, headless, conversationUrl }) => {
+  console.log('Searching Perplexity images for:', query, 'Headless:', headless, 'ConversationURL:', conversationUrl || 'NEW');
 
   const workerWindow = new BrowserWindow({
     show: !headless,
@@ -794,11 +794,14 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless }) =>
   });
 
   try {
-    console.log('Loading Perplexity...');
-    await workerWindow.loadURL('https://www.perplexity.ai/');
+    // Load existing conversation or create new one
+    const urlToLoad = conversationUrl || 'https://www.perplexity.ai/';
+    console.log('Loading Perplexity:', urlToLoad);
+    await workerWindow.loadURL(urlToLoad);
 
     // Wait longer to allow Cloudflare challenges to complete
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    const waitTime = conversationUrl ? 3000 : 5000; // Less wait if reusing conversation
+    await new Promise(resolve => setTimeout(resolve, waitTime));
 
     const result = await workerWindow.webContents.executeJavaScript(`
       (async () => {
@@ -909,6 +912,10 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless }) =>
           // Small delay for UI to update
           await sleep(2000);
 
+          // Capture conversation URL after query is submitted
+          const currentUrl = window.location.href;
+          console.log('Conversation URL:', currentUrl);
+
           // 4. Click Images tab directly (no need to wait for text response)
           console.log('Looking for Images tab...');
           const imageTabSelectors = [
@@ -954,12 +961,13 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless }) =>
           await sleep(3000); // Wait for images to load
 
           // 6. Scroll to load lazy images
-          console.log('Scrolling to load images...');
-          for (let i = 0; i < 3; i++) {
-            window.scrollBy(0, 500);
-            await sleep(1000);
+          console.log('Scrolling to load images in Images tab...');
+          for (let i = 0; i < 5; i++) {
+            window.scrollBy(0, 800);
+            await sleep(1500);
           }
 
+          console.log('Finished scrolling, waiting for images to settle...');
           await sleep(2000);
 
           // 7. Extract full-size image URLs by clicking each image
@@ -1070,7 +1078,8 @@ ipcMain.handle('perplexity-search-images', async (event, { query, headless }) =>
           return {
             success: true,
             images: imageUrls.slice(0, 10),
-            count: imageUrls.length
+            count: imageUrls.length,
+            conversationUrl: currentUrl
           };
 
         } catch (scriptError) {
