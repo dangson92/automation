@@ -2,6 +2,7 @@ import express from 'express'
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 import { query } from '../db.js'
+import { privateKey } from '../config/keys.js'
 
 const router = express.Router()
 
@@ -52,7 +53,7 @@ router.post('/', async (req, res) => {
       maxDevices: lic.max_devices,
       appVersion: appVersion || null,
     }
-    const token = jwt.sign(payload, process.env.PRIVATE_KEY, { algorithm: 'RS256', expiresIn: '30d' })
+    const token = jwt.sign(payload, privateKey, { algorithm: 'RS256', expiresIn: '30d' })
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
     res.json({ token, expiresAt, licenseInfo: { expires_at: lic.expires_at, status: lic.status, appCode } })
   } catch (e) {

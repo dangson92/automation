@@ -1,0 +1,14 @@
+{
+  "name": "license-client",
+  "version": "1.0.0",
+  "description": "License validation client for Electron apps",
+  "main": "src/index.js",
+  "keywords": ["license", "activation", "electron"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2",
+    "node-machine-id": "^1.1.12",
+    "axios": "^1.6.2"
+  }
+}

@@ -9,5 +9,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadQueue: () => ipcRenderer.invoke('queue-load'),
   exportSettings: (settings) => ipcRenderer.invoke('settings-export', settings),
   importSettings: () => ipcRenderer.invoke('settings-import'),
-  searchPerplexityImages: (data) => ipcRenderer.invoke('perplexity-search-images', data)
+  searchPerplexityImages: (data) => ipcRenderer.invoke('perplexity-search-images', data),
+  // License management
+  activateLicense: (licenseKey) => ipcRenderer.invoke('license-activate', licenseKey),
+  verifyLicense: () => ipcRenderer.invoke('license-verify'),
+  getLicenseInfo: () => ipcRenderer.invoke('license-info'),
+  removeLicense: () => ipcRenderer.invoke('license-remove'),
+  licenseActivated: () => ipcRenderer.invoke('license-activated')
 });
