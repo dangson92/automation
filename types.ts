@@ -94,7 +94,7 @@ declare global {
       loadQueue: () => Promise<{ success: boolean; data: QueueItem[]; error?: string }>;
       exportSettings: (settings: { config: AppConfig; automationConfig: AutomationConfig }) => Promise<{ success: boolean; path?: string; error?: string }>;
       importSettings: () => Promise<{ success: boolean; data?: { config: AppConfig; automationConfig: AutomationConfig }; error?: string }>;
-      searchPerplexityImages: (data: { query: string; headless: boolean }) => Promise<{ success?: boolean; images?: string[]; count?: number; error?: string }>;
+      searchPerplexityImages: (data: { query: string; headless: boolean; conversationUrl?: string }) => Promise<{ success?: boolean; images?: string[]; count?: number; conversationUrl?: string; error?: string }>;
     };
   }
 }
