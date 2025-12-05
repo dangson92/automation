@@ -449,36 +449,36 @@ const App: React.FC = () => {
       if (item.id !== itemId) return item;
 
       const newResults = (item.results || []).map(r => {
-        if (r.stepId !== stepId) return { ...r, response: content };
+        if (r.stepId !== stepId) return r;
 
         // Sync imageData with actual images in the edited HTML
         let syncedImageData = r.imageData;
         if (r.imageData && r.imageData.length > 0) {
-          // Parse HTML to find all auto-generated images
+          // Parse HTML to find images with data-image-idx attribute
           const tempDiv = document.createElement('div');
           tempDiv.innerHTML = content;
-          const imgElements = tempDiv.querySelectorAll('img.auto-generated-image');
 
-          // Create a map of current image URLs in HTML
-          const htmlImageUrls = Array.from(imgElements).map(img => (img as HTMLImageElement).src);
-
-          // Sync imageData: only keep images that exist in HTML and update their URLs
+          // Update imageData based on what's actually in the HTML
           syncedImageData = r.imageData.map((imgData: any, idx: number) => {
-            // Find if this image still exists in HTML (by index position)
-            if (idx < htmlImageUrls.length) {
-              const currentUrlInHtml = htmlImageUrls[idx];
-              // If URL changed, update selectedImage and try to find its index in images array
-              if (currentUrlInHtml !== imgData.selectedImage) {
-                const newIndex = imgData.images.indexOf(currentUrlInHtml);
-                return {
-                  ...imgData,
-                  selectedImage: currentUrlInHtml,
-                  selectedIndex: newIndex >= 0 ? newIndex : imgData.selectedIndex
-                };
-              }
+            const img = tempDiv.querySelector(`img[data-image-idx="${idx}"]`);
+            if (!img) {
+              // Image was removed from HTML
+              return null;
             }
+
+            const currentSrc = (img as HTMLImageElement).src;
+            if (currentSrc !== imgData.selectedImage) {
+              // URL was changed, try to find its index in the images array
+              const newIndex = imgData.images.indexOf(currentSrc);
+              return {
+                ...imgData,
+                selectedImage: currentSrc,
+                selectedIndex: newIndex >= 0 ? newIndex : imgData.selectedIndex
+              };
+            }
+
             return imgData;
-          }).filter((_, idx) => idx < htmlImageUrls.length); // Remove imageData for deleted images
+          }).filter(Boolean); // Remove null entries (deleted images)
         }
 
         return { ...r, response: content, imageData: syncedImageData };
@@ -691,26 +691,33 @@ const App: React.FC = () => {
             if (idx !== imageIndex) return imgData;
 
             // Update selected image
-            const oldImage = imgData.selectedImage;
-            const newImageData = {
+            return {
               ...imgData,
               selectedImage: newImageUrl,
               selectedIndex: newIndex
             };
-
-            // Also update in response HTML
-            return newImageData;
           });
 
-          // Update response HTML to replace old image URL with new one
-          const oldImageData = result.imageData[imageIndex];
+          // Update response HTML to replace image using data-image-idx attribute
           let updatedResponse = result.response;
-          if (oldImageData) {
-            // Use regex to find and replace the img tag with the old URL
-            // This ensures we maintain the centered div structure
-            const escapedOldUrl = oldImageData.selectedImage.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const imgTagRegex = new RegExp(`<img\\s+src="${escapedOldUrl}"([^>]*)>`, 'g');
-            updatedResponse = updatedResponse.replace(imgTagRegex, `<img src="${newImageUrl}"$1>`);
+
+          // Parse HTML and find the image with matching data-image-idx
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = updatedResponse;
+          const targetImg = tempDiv.querySelector(`img[data-image-idx="${imageIndex}"]`);
+
+          if (targetImg) {
+            // Update the src attribute
+            targetImg.setAttribute('src', newImageUrl);
+            updatedResponse = tempDiv.innerHTML;
+          } else {
+            // Fallback: try to find by old URL if data attribute is missing
+            const oldImageData = result.imageData[imageIndex];
+            if (oldImageData) {
+              const escapedOldUrl = oldImageData.selectedImage.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const imgTagRegex = new RegExp(`<img\\s+src="${escapedOldUrl}"([^>]*)>`, 'g');
+              updatedResponse = updatedResponse.replace(imgTagRegex, `<img src="${newImageUrl}"$1>`);
+            }
           }
 
           return {
@@ -1091,7 +1098,8 @@ const App: React.FC = () => {
       // Replace shortcode with centered image tag
       // Use contextParagraph for alt text (truncated to 100 chars for better alt text)
       const altText = contextParagraph.substring(0, 100).trim();
-      const imgTag = `<div style="text-align: center; margin: 1.5em 0;"><img src="${selectedImage}" alt="${altText}" class="auto-generated-image" style="max-width: 100%; height: auto; display: inline-block;" /></div>`;
+      const imageIndex = imageData.length; // Current index before pushing
+      const imgTag = `<div style="text-align: center; margin: 1.5em 0;"><img src="${selectedImage}" alt="${altText}" class="auto-generated-image" data-image-idx="${imageIndex}" style="max-width: 100%; height: auto; display: inline-block;" /></div>`;
       updatedResponse = updatedResponse.replace(shortcode, imgTag);
 
       // Save image data
@@ -1162,8 +1170,7 @@ const App: React.FC = () => {
           // Append hidden prompt for image shortcodes if imageConfig is enabled
           if (step.imageConfig?.enabled && step.imageConfig?.autoInsert) {
             const imageCount = step.imageConfig.count || 3;
-            const shortcodes = Array.from({ length: imageCount }, (_, idx) => `[image${idx + 1}]`).join(',');
-            const hiddenPrompt = `\n\n[INSTRUCTION] Thêm ${imageCount} shortcode ảnh ${shortcodes} vào bài viết một cách tự nhiên, sử dụng dấu xuống dòng để ảnh được ở riêng 1 dòng`;
+            const hiddenPrompt = `\n\n[INSTRUCTION] Chèn ${imageCount} vị trí ảnh vào bài viết bằng cách sử dụng các shortcode theo định dạng [image1], [image2], [image3], v.v. Mỗi shortcode phải ở riêng một dòng. Đừng thêm text giải thích về shortcode, chỉ thêm shortcode vào vị trí phù hợp trong bài.`;
             promptToSend += hiddenPrompt;
             appendLog(id, `[IMAGE] Đã thêm prompt ẩn để chèn ${imageCount} shortcode ảnh`);
           }
