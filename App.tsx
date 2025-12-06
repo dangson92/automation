@@ -2447,7 +2447,7 @@ const App: React.FC = () => {
                                  }}
                               >
                                  {result ? (
-                                    <div className="max-h-32 overflow-hidden line-clamp-4 break-words" title={result.response}>
+                                    <div className="break-words whitespace-pre-wrap" title={result.response}>
                                        {result.response}
                                     </div>
                                  ) : isCurrent ? (
