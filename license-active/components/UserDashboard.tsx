@@ -19,13 +19,35 @@ export const UserDashboard: React.FC<UserDashboardProps> = ({ user, onLogout }) 
   const loadUserLicenses = async () => {
     try {
       setLoading(true);
-      // Load licenses for current user (this would need backend support)
-      // For now, we'll just show empty state
-      setUserKeys([]);
+      const response = await api.user.getLicenses();
+
+      // Map API response to LicenseKey format
+      const licenses: LicenseKey[] = response.items.map((item: any) => ({
+        id: item.id.toString(),
+        key: item.license_key,
+        status: mapStatus(item.status),
+        createdAt: new Date().toISOString(), // API doesn't return created_at yet
+        expiresAt: item.expires_at,
+        appCode: item.app_code,
+        appName: item.app_name,
+        maxDevices: item.max_devices,
+      }));
+
+      setUserKeys(licenses);
     } catch (error) {
       console.error('Failed to load licenses:', error);
+      setUserKeys([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const mapStatus = (dbStatus: string): KeyStatus => {
+    switch (dbStatus) {
+      case 'active': return KeyStatus.ACTIVE;
+      case 'revoked': return KeyStatus.REVOKED;
+      case 'expired': return KeyStatus.EXPIRED;
+      default: return KeyStatus.ACTIVE;
     }
   };
 

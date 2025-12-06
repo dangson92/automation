@@ -214,6 +214,32 @@ export const api = {
     },
   },
 
+  // User endpoints
+  user: {
+    // Get licenses for current user
+    getLicenses: async () => {
+      return apiCall('/user/licenses');
+    },
+
+    // Get license details
+    getLicenseDetails: async (id: number) => {
+      return apiCall(`/user/licenses/${id}`);
+    },
+
+    // Request license renewal
+    requestRenewal: async (licenseId: number, message?: string) => {
+      return apiCall(`/user/licenses/${licenseId}/renew-requests`, {
+        method: 'POST',
+        body: JSON.stringify({ message }),
+      });
+    },
+
+    // Get renewal requests
+    getRenewalRequests: async () => {
+      return apiCall('/user/renew-requests');
+    },
+  },
+
   activations: {
     // TODO: Add activation endpoints if needed
   },
