@@ -76,16 +76,19 @@ const cleanHTML = (html: string): string => {
 
 const App: React.FC = () => {
   // --- State ---
+  // User info from license (Electron only)
+  const [userInfo, setUserInfo] = useState<{ email: string; name: string } | null>(null);
+
   // Queue will be loaded from file (Electron) or localStorage (web) in useEffect
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [inputText, setInputText] = useState("");
-  
+
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [automationConfig, setAutomationConfig] = useState<AutomationConfig>(DEFAULT_AUTOMATION);
   const [headless, setHeadless] = useState(false); // Default false: hiển trình duyệt
-  
+
   const [mode, setMode] = useState<'API' | 'BROWSER' | 'EXTENSION' | 'ELECTRON'>('BROWSER');
   
   // Agent / Preset Management
@@ -176,6 +179,19 @@ const App: React.FC = () => {
       localStorage.setItem('promptflow_queue', JSON.stringify(queue));
     }
   }, [queue, mode]);
+
+  // Load user info from license (Electron only)
+  useEffect(() => {
+    if (mode === 'ELECTRON' && window.electronAPI?.getUserInfo) {
+      window.electronAPI.getUserInfo().then((info: any) => {
+        if (info) {
+          setUserInfo(info);
+        }
+      }).catch(err => {
+        console.error('Failed to get user info:', err);
+      });
+    }
+  }, [mode]);
 
   // Scroll to step when scrollToStepId changes
   useEffect(() => {
@@ -1630,21 +1646,30 @@ const App: React.FC = () => {
 
       {/* --- SIDEBAR --- */}
       <aside className="w-96 bg-white border-r border-slate-200 flex flex-col shadow-sm z-20">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-           <div className="flex items-center space-x-2">
+        <div className="p-4 border-b border-slate-100">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center space-x-2">
               <div className={`p-2 rounded-lg ${mode === 'ELECTRON' ? 'bg-blue-600' : (mode === 'EXTENSION' ? 'bg-indigo-600' : 'bg-slate-800')}`}>
                 <Monitor className="w-5 h-5 text-white" />
               </div>
               <div>
                 <h1 className="font-bold text-lg tracking-tight leading-none">Automation</h1>
                 <span className="text-[10px] font-medium text-slate-500 tracking-wider uppercase">
-                   {mode === 'ELECTRON' ? 'Desktop App Mode' : (mode === 'EXTENSION' ? 'Extension Mode' : 'Web Simulation')}
+                  {mode === 'ELECTRON' ? 'Desktop App Mode' : (mode === 'EXTENSION' ? 'Extension Mode' : 'Web Simulation')}
                 </span>
               </div>
-           </div>
-           <button onClick={() => setShowHelp(true)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors">
+            </div>
+            <button onClick={() => setShowHelp(true)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors">
               <HelpCircle className="w-5 h-5" />
-           </button>
+            </button>
+          </div>
+          {/* User info - Electron only */}
+          {mode === 'ELECTRON' && userInfo && (
+            <div className="text-xs text-slate-600 bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100 rounded-md px-3 py-2">
+              <span className="font-medium">Xin chào,</span>{' '}
+              <span className="text-indigo-700 font-semibold">{userInfo.email}</span>
+            </div>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-6">
