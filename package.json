@@ -19,7 +19,13 @@
       "electron-main.js",
       "electron-preload.js",
       "license-manager.js",
-      "package.json"
+      "keys/public.pem",
+      "package.json",
+      "!license-active/**/*",
+      "!node_modules/**/*",
+      "!src/**/*",
+      "!*.md",
+      "!.git/**/*"
     ],
     "win": {
       "target": [
