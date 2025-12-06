@@ -2371,7 +2371,7 @@ const App: React.FC = () => {
                <table className="text-left border-collapse" style={{ minWidth: '100%' }}>
                  <thead className="bg-slate-100 sticky top-0 z-10 shadow-sm">
                    <tr>
-                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-10 sticky left-0 bg-slate-100 z-20">
+                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-10 sticky left-0 bg-slate-100 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                        <input
                          type="checkbox"
                          checked={queue.length > 0 && selectedItemIds.size === queue.length}
@@ -2379,9 +2379,9 @@ const App: React.FC = () => {
                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                        />
                      </th>
-                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-12 sticky left-10 bg-slate-100 z-20">#</th>
-                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-[140px] min-w-[140px] sticky left-[88px] bg-slate-100 z-20 whitespace-nowrap">Trạng thái</th>
-                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 min-w-[200px] w-64 sticky left-[228px] bg-slate-100 z-20">Input Gốc</th>
+                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-12 sticky left-10 bg-slate-100 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">#</th>
+                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-[140px] min-w-[140px] sticky left-[88px] bg-slate-100 z-20 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Trạng thái</th>
+                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 min-w-[200px] w-64 sticky left-[228px] bg-slate-100 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Input Gốc</th>
                      {config.steps.map(step => (
                         <th key={step.id} className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 min-w-[250px] w-80">
                            <div className="flex items-center space-x-1">
@@ -2401,12 +2401,14 @@ const App: React.FC = () => {
                         </td>
                       </tr>
                     )}
-                    {queue.map((item, idx) => (
+                    {queue.map((item, idx) => {
+                      const isSelected = selectedItemId === item.id;
+                      return (
                       <tr
                         key={item.id}
-                        className={`hover:bg-indigo-50/50 group transition-colors ${selectedItemId === item.id ? 'bg-indigo-50' : ''}`}
+                        className={`group hover:bg-indigo-50/50 transition-colors ${isSelected ? 'bg-indigo-50' : ''}`}
                       >
-                        <td className="p-3 sticky left-0 bg-white z-10" onClick={(e) => e.stopPropagation()}>
+                        <td className={`p-3 sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isSelected ? 'bg-indigo-50' : 'bg-white group-hover:bg-indigo-50/50'}`} onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={selectedItemIds.has(item.id)}
@@ -2414,8 +2416,8 @@ const App: React.FC = () => {
                             className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                           />
                         </td>
-                        <td className="p-3 text-xs font-mono text-slate-400 sticky left-10 bg-white z-10 cursor-pointer" onClick={() => setSelectedItemId(item.id)}>{idx + 1}</td>
-                        <td className="p-3 sticky left-[88px] bg-white z-10 whitespace-nowrap cursor-pointer" onClick={() => setSelectedItemId(item.id)}>
+                        <td className={`p-3 text-xs font-mono text-slate-400 sticky left-10 z-10 cursor-pointer shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isSelected ? 'bg-indigo-50' : 'bg-white group-hover:bg-indigo-50/50'}`} onClick={() => setSelectedItemId(item.id)}>{idx + 1}</td>
+                        <td className={`p-3 sticky left-[88px] z-10 whitespace-nowrap cursor-pointer shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isSelected ? 'bg-indigo-50' : 'bg-white group-hover:bg-indigo-50/50'}`} onClick={() => setSelectedItemId(item.id)}>
                            <div className="flex flex-col gap-1">
                              <StatusBadge status={item.status} />
                              {item.startTime && item.endTime && (
@@ -2425,7 +2427,7 @@ const App: React.FC = () => {
                              )}
                            </div>
                         </td>
-                        <td className="p-3 text-sm text-slate-800 font-medium min-w-[250px] max-w-[400px] align-top cursor-pointer sticky left-[228px] bg-white z-10" onClick={() => setSelectedItemId(item.id)}>
+                        <td className={`p-3 text-sm text-slate-800 font-medium min-w-[250px] max-w-[400px] align-top cursor-pointer sticky left-[228px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isSelected ? 'bg-indigo-50' : 'bg-white group-hover:bg-indigo-50/50'}`} onClick={() => setSelectedItemId(item.id)}>
                            <div className="break-words whitespace-normal line-clamp-3">{item.originalPrompt}</div>
                         </td>
 
@@ -2463,7 +2465,8 @@ const App: React.FC = () => {
                            <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-400" />
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                  </tbody>
                </table>
              </div>
