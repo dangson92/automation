@@ -1,0 +1,30 @@
+Bước 1: Pull code mới
+cd ~/apps/license-active
+git pull origin claude/license-key-system-01GqkjQvPhvQmJnrinTAwSMV
+
+Bước 2: Rebuild frontend
+npm install
+VITE_API_URL=https://api.dangthanhson.com npm run build
+
+Bước 3: Deploy frontend
+sudo rm -rf /var/www/license-app/*
+sudo cp -r dist/* /var/www/license-app/
+sudo chown -R www-data:www-data /var/www/license-app
+sudo chmod -R 755 /var/www/license-app
+
+Bước 4: Restart backend (nếu chưa chạy)
+# Install PM2 nếu chưa có
+npm install -g pm2
+
+# Start backend
+pm2 start npm --name license-api -- run backend
+pm2 save
+pm2 startup
+
+Bước 5: Kiểm tra
+# Test backend
+curl https://api.dangthanhson.com/health
+# → {"ok":true}
+
+# Test frontend (trong browser)
+# → https://license.dangthanhson.com

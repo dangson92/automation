@@ -1,0 +1,320 @@
+Tôi đang xây dựng một hệ thống Server License Key cho các phần mềm Electron/NodeJS.
+
+YÊU CẦU CHÍNH:
+- **Admin** là người tạo và quản lý license (tạo key, gán cho user, thiết lập hạn dùng, max_devices, v.v.).
+- **User (khách hàng)** chỉ:
+  - Đăng ký tài khoản, đăng nhập.
+  - Xem danh sách license của riêng họ (mỗi dòng hiển thị: License key - Tên phần mềm - Ngày hết hạn - Trạng thái).
+  - Gửi **yêu cầu gia hạn** license (renew request) lên hệ thống để admin duyệt.
+- Client app (Electron) vẫn dùng server này để **activate license theo máy + appCode**.
+
+Hãy xây dựng cho tôi **toàn bộ backend + database + luồng hoạt động + hướng dẫn triển khai trên VPS**.
+
+====================================================
+1. CHỨC NĂNG TỔNG QUAN
+====================================================
+
+A) VAI TRÒ ADMIN
+---------------------------------
+- Tạo tài khoản admin mặc định (hoặc hướng dẫn tạo admin).
+- Đăng nhập admin.
+- Tạo license:
+  - Chọn user (user_id).
+  - Chọn phần mềm (app_id / appCode).
+  - Sinh license_key.
+  - Thiết lập: max_devices, expires_at, status (active/revoked/expired).
+- Xem danh sách license (lọc theo user, app, trạng thái).
+- Xem chi tiết từng license:
+  - Thông tin license.
+  - Danh sách thiết bị đã kích hoạt (activations).
+- Xử lý **yêu cầu gia hạn** license từ user:
+  - Xem danh sách yêu cầu.
+  - Approve / Reject.
+  - Khi Approve → cập nhật expires_at của license.
+- Revoke / đổi trạng thái license nếu cần.
+
+B) VAI TRÒ USER (KHÁCH HÀNG)
+---------------------------------
+- Đăng ký tài khoản bằng email + password.
+- Đăng nhập → lấy JWT user token.
+- Xem **danh sách license của riêng họ**:
+  - Mỗi dòng: license_key, app name, appCode, expires_at, status.
+- Xem chi tiết license:
+  - Thông tin license + danh sách thiết bị đã kích hoạt (chỉ xem).
+- Gửi **yêu cầu gia hạn** (renew request) cho một license:
+  - Ví dụ: lý do, gói muốn nâng cấp, thời gian muốn gia hạn.
+- User **không được tự tạo license, không được tự gia hạn trực tiếp**, chỉ gửi request.
+
+C) LUỒNG ACTIVATION CHO APP ELECTRON
+---------------------------------
+- App Electron/Node client gửi:
+  - licenseKey
+  - appCode
+  - deviceId
+  - appVersion
+- Server:
+  - Kiểm tra license có tồn tại, thuộc app đó, còn hạn, status = active.
+  - Kiểm tra số lượng máy đã active (max_devices).
+  - Hash deviceId → deviceHash.
+  - Nếu device mới:
+    - Nếu chưa vượt max_devices → tạo activation mới.
+    - Nếu vượt → trả lỗi.
+  - Nếu device cũ → cập nhật last_checkin_at.
+  - Trả về **JWT token đã ký bằng PRIVATE_KEY** chứa:
+    - licenseId, appCode, deviceHash, maxDevices, licenseStatus, exp.
+- Client:
+  - Lưu token local.
+  - Mỗi lần mở app → verify token bằng PUBLIC_KEY.
+
+====================================================
+2. DATABASE DESIGN (SQL)
+====================================================
+
+Hãy thiết kế schema chi tiết (MySQL hoặc Postgres, chọn một và ghi rõ):
+
+Bảng **users**
+- id
+- email (unique)
+- password_hash
+- full_name
+- role ('user', 'admin')
+- created_at
+- last_login_at
+
+Bảng **apps**
+- id
+- code (unique)  // ví dụ: 'EDITOR_PRO', 'SEO_TOOL'
+- name
+- created_at
+
+Bảng **licenses**
+- id
+- user_id (FK -> users.id)  // owner của license
+- app_id (FK -> apps.id)
+- license_key (unique)
+- max_devices
+- expires_at (nullable)
+- status (active / revoked / expired)
+- meta (JSON nullable)
+- created_at
+
+Bảng **activations**
+- id
+- license_id (FK -> licenses.id)
+- device_hash
+- first_activated_at
+- last_checkin_at
+- status (active / banned)
+- UNIQUE(license_id, device_hash)
+
+Bảng **renew_requests** (yêu cầu gia hạn license từ user)
+- id
+- user_id (FK -> users.id)      // ai gửi
+- license_id (FK -> licenses.id)
+- message (TEXT)                 // nội dung yêu cầu gia hạn / ghi chú
+- status (pending / approved / rejected)
+- created_at
+- processed_at (nullable)
+- processed_by_admin_id (FK -> users.id, nullable, chỉ khi đã xử lý)
+
+(Nếu cần, bạn có thể đề xuất thêm bảng log khác, nhưng tối thiểu phải có những bảng trên.)
+
+====================================================
+3. API BACKEND (NODEJS + EXPRESS)
+====================================================
+
+Dùng:
+- Node.js + Express
+- Thư viện JWT
+- Bcrypt để hash password
+- Thư viện DB (mysql2 hoặc pg)
+- Dùng .env để chứa PRIVATE_KEY, DEVICE_SALT, DB credentials
+
+A) AUTH & USER
+---------------------------------
+POST /auth/register
+- Input: email, password, fullName
+- Hash password (bcrypt)
+- Tạo user với role mặc định là 'user'
+- Trả JWT user token
+
+POST /auth/login
+- Input: email, password
+- Check đúng password
+- Trả JWT user token (role: user/admin)
+
+Middleware:
+- requireUser: kiểm tra JWT, chỉ cần user login (role user/admin đều được)
+- requireAdmin: chỉ cho phép user role = 'admin'
+
+B) USER: XEM LICENSE & GỬI YÊU CẦU GIA HẠN
+---------------------------------
+GET /user/licenses       (requireUser)
+- Trả danh sách license thuộc về user hiện tại (user_id từ token)
+
+GET /user/licenses/:id   (requireUser)
+- Trả thông tin chi tiết license của user hiện tại (chỉ cho xem license thuộc về họ)
+- Kèm danh sách activations (device_hash, first_activated_at, last_checkin_at, status)
+
+POST /user/licenses/:id/renew-requests   (requireUser)
+- Input: message (optional nhưng nên có)
+- Tạo 1 record trong bảng renew_requests với status = 'pending'
+- Chỉ cho phép tạo renew_request nếu license thuộc về user đó
+
+GET /user/renew-requests                  (requireUser)
+- Trả danh sách renew_requests của user hiện tại (để họ xem trạng thái: pending/approved/rejected)
+
+C) ADMIN: QUẢN LÝ LICENSE & RENEW REQUESTS
+---------------------------------
+Các route này dùng requireAdmin:
+
+GET /admin/users
+- Trả danh sách user (id, email, full_name, role, created_at)
+
+GET /admin/licenses
+- Trả danh sách license (có thể filter theo user, app, status)
+
+POST /admin/licenses
+- Input:
+  - user_id
+  - app_id
+  - max_devices
+  - expires_at
+  - status (active)
+- Sinh license_key random (chuẩn: XXXX-XXXX-XXXX)
+- Lưu vào DB
+
+GET /admin/licenses/:id
+- Trả chi tiết license + activations
+
+PATCH /admin/licenses/:id
+- Cho phép admin cập nhật:
+  - expires_at
+  - status
+  - max_devices
+  - meta
+
+GET /admin/renew-requests
+- Danh sách tất cả renew_requests (filter theo status, user, license)
+
+PATCH /admin/renew-requests/:id
+- Input: status (approved/rejected)
+- Nếu approved:
+  - Cập nhật expires_at cho license tương ứng (theo một logic demo, ví dụ +1 tháng hoặc +1 năm)
+  - Cập nhật renew_requests.processed_at, processed_by_admin_id
+- Nếu rejected:
+  - Chỉ cập nhật status + processed_at + processed_by_admin_id
+
+D) ACTIVATION API (CHO APP ELECTRON)
+---------------------------------
+POST /activate
+- Input: licenseKey, appCode, deviceId, appVersion
+- Logic:
+  - Tìm app bằng appCode
+  - Tìm license theo licenseKey + app_id
+  - Check license.status = active
+  - Check license.expires_at > now (nếu có)
+  - Hash deviceId → deviceHash (dùng DEVICE_SALT)
+  - Tìm activation (license_id, device_hash)
+    - Nếu chưa có:
+      - Đếm số activations active cho license
+      - Nếu >= max_devices → trả lỗi
+      - Nếu < max_devices → tạo activation mới (status=active)
+    - Nếu đã có → cập nhật last_checkin_at
+  - Tạo JWT activation token:
+    - Payload: { licenseId, appCode, deviceHash, licenseStatus, maxDevices }
+    - Ký bằng PRIVATE_KEY, expiresIn: 30d
+  - Trả JSON: token, expiresAt, licenseInfo (expires_at, status, appCode)
+
+====================================================
+4. CODE CLIENT-SIDE (ELECTRON/NODEJS)
+====================================================
+
+Hãy viết ví dụ code:
+
+- Hàm tạo `deviceId`:
+  - Lấy hostname, username, một vài info từ OS, MAC, v.v.
+  - Hash lại bằng crypto ở client → deviceId.
+
+- Lưu `deviceId` vào một file cấu hình local (vd: config.json trong thư mục userData).
+
+- Hàm `activateLicense(licenseKey, appCode)`:
+  - Gửi POST /activate với { licenseKey, appCode, deviceId, appVersion }
+  - Nhận token → lưu vào file `license_token.json`.
+
+- Hàm `verifyLicenseToken()`:
+  - Dùng PUBLIC_KEY tương ứng để verify JWT từ file license_token.json.
+  - Check exp, appCode, deviceHash trùng với deviceId hiện tại.
+
+- Quy trình khởi động app:
+  - Nếu chưa có token → yêu cầu nhập licenseKey → gọi activate → lưu token.
+  - Nếu có token → verify:
+    - Hợp lệ → cho vào app
+    - Hết hạn hoặc invalid → yêu cầu nhập lại license hoặc báo lỗi.
+
+====================================================
+5. TRIỂN KHAI TRÊN VPS (UBUNTU) & USER HỆ THỐNG
+====================================================
+
+Hãy viết hướng dẫn triển khai thực tế:
+
+A) USER HỆ THỐNG (LINUX / SSH)
+---------------------------------
+- Tạo user mới trên Ubuntu bằng `adduser`.
+- Thêm user vào nhóm sudo (cho user admin, nếu cần).
+- Tạo SSH key trên máy local, copy public key vào `~/.ssh/authorized_keys` của user trên VPS.
+- Sửa `/etc/ssh/sshd_config` để:
+  - Tắt PasswordAuthentication (no).
+  - Chỉ cho login bằng key.
+- Cấu trúc:
+  - 1 user hệ thống để deploy & chạy app Node (vd: `licenseapp`).
+  - 1 user admin (có sudo) để bảo trì server.
+
+B) TRIỂN KHAI APP
+---------------------------------
+- Cài Node.js LTS.
+- Cài pm2 để chạy Node app nền.
+- Cài Nginx → reverse proxy tới Node (port 3000).
+- Gán domain/subdomain (vd: license.mydomain.com).
+- Dùng Let’s Encrypt (certbot) tạo SSL, bắt buộc HTTPS.
+- Cấu trúc thư mục project.
+- File .env chứa:
+  - DB_HOST, DB_USER, DB_PASS, DB_NAME
+  - PRIVATE_KEY / đường dẫn tới file .pem
+  - DEVICE_SALT
+  - JWT_SECRET (cho user auth)
+
+====================================================
+6. BẢO MẬT & CHỐNG CRACK
+====================================================
+
+Hãy mô tả & gợi ý triển khai:
+
+- Dùng HTTPS bắt buộc.
+- Private key chỉ nằm trên server, không bao giờ gửi xuống client.
+- Client chỉ có PUBLIC_KEY để verify token.
+- JWT activation có hạn (vd 30 ngày), sau đó client cần activate lại.
+- Thêm rate limit cho /activate.
+- Thêm logging cơ bản khi có quá nhiều request từ 1 IP.
+- Obfuscate code app Electron/Node để làm khó việc bypass check license.
+- Không để 1 chỗ duy nhất trong code client đảm nhiệm check license (có thể gọi ở vài chỗ khác nhau trong flow app).
+
+====================================================
+7. OUTPUT MONG MUỐN
+====================================================
+
+Hãy xuất ra một tài liệu kỹ thuật hoàn chỉnh với:
+
+1. Mô tả kiến trúc tổng quan (admin – user – license – renew_requests – activation).
+2. File schema SQL đầy đủ (tất cả bảng).
+3. Code backend Node.js + Express:
+   - Auth user/admin.
+   - API user xem license & gửi yêu cầu gia hạn.
+   - API admin quản lý license & xử lý renew_requests.
+   - API activate cho client.
+   - Các middleware bảo vệ route (requireUser, requireAdmin).
+4. Code mẫu client Electron/Node để activate & verify license.
+5. Hướng dẫn triển khai và quản trị trên VPS Ubuntu.
+6. Gợi ý & lưu ý bảo mật.
+
+Trình bày rõ ràng, nhiều code block, có thể copy-paste vào project thực tế.
