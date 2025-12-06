@@ -201,17 +201,6 @@ class LicenseManager {
         }
       }
 
-      // Kiểm tra deviceHash có khớp với deviceId hiện tại không
-      const currentDeviceId = this.getOrCreateDeviceId()
-      const expectedHash = this.hashDeviceId(currentDeviceId)
-
-      if (payload.deviceHash !== expectedHash) {
-        return {
-          valid: false,
-          error: 'Token is bound to different device'
-        }
-      }
-
       // Kiểm tra license status
       if (payload.licenseStatus !== 'active') {
         return {
@@ -237,22 +226,6 @@ class LicenseManager {
         error: `Token verification failed: ${error.message}`
       }
     }
-  }
-
-  /**
-   * Hash device ID theo cùng cách với server
-   * (Server dùng DEVICE_SALT từ .env)
-   * Client không cần biết DEVICE_SALT, chỉ cần để server verify
-   * Hàm này chỉ để demo, thực tế client không cần hash
-   */
-  hashDeviceId(deviceId) {
-    // Lưu ý: Server sẽ hash với DEVICE_SALT
-    // Client không cần hash, chỉ gửi deviceId thô lên server
-    // Hàm này chỉ để demo kiểm tra
-    const hash = crypto.createHash('sha256')
-    hash.update(String(deviceId))
-    // Không có DEVICE_SALT ở client, server sẽ hash
-    return hash.digest('hex')
   }
 
   /**

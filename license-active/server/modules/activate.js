@@ -16,6 +16,15 @@ const hashDevice = (deviceId) => {
 router.post('/', async (req, res) => {
   try {
     const { licenseKey, appCode, deviceId, appVersion } = req.body
+
+    // Log request info
+    console.log('📝 License activation request:', {
+      licenseKey: licenseKey?.substring(0, 4) + '****',
+      appCode,
+      deviceId: deviceId?.substring(0, 16) + '...',
+      appVersion
+    })
+
     if (!licenseKey || !appCode || !deviceId) return res.status(400).json({ error: 'invalid_input' })
     const appR = await query('SELECT id,code FROM apps WHERE code=?', [appCode])
     if (!appR.rows.length) return res.status(404).json({ error: 'app_not_found' })
@@ -29,6 +38,11 @@ router.post('/', async (req, res) => {
     if (lic.status !== 'active') return res.status(400).json({ error: 'license_inactive' })
     if (lic.expires_at && new Date(lic.expires_at).getTime() < Date.now()) return res.status(400).json({ error: 'license_expired' })
     const deviceHash = hashDevice(deviceId)
+
+    console.log('🔐 Device info:', {
+      deviceId: deviceId?.substring(0, 32) + '...',
+      deviceHash: deviceHash?.substring(0, 16) + '...'
+    })
     const actR = await query('SELECT id,status FROM activations WHERE license_id=? AND device_hash=?', [lic.id, deviceHash])
     if (!actR.rows.length) {
       const countR = await query(
@@ -36,14 +50,22 @@ router.post('/', async (req, res) => {
         [lic.id]
       )
       const c = Number(countR.rows[0].c)
-      if (c >= lic.max_devices) return res.status(429).json({ error: 'max_devices_reached' })
+      console.log(`📊 Active devices: ${c}/${lic.max_devices}`)
+
+      if (c >= lic.max_devices) {
+        console.log('❌ Max devices reached')
+        return res.status(429).json({ error: 'max_devices_reached' })
+      }
+
       await query(
         `INSERT INTO activations(license_id,device_hash,first_activated_at,last_checkin_at,status)
          VALUES(?,?,NOW(),NOW(),'active')`,
         [lic.id, deviceHash]
       )
+      console.log('✅ New device activated')
     } else {
       await query(`UPDATE activations SET last_checkin_at=NOW() WHERE id=?`, [actR.rows[0].id])
+      console.log('✅ Device re-activated (already exists)')
     }
     const payload = {
       licenseId: lic.id,
@@ -55,8 +77,10 @@ router.post('/', async (req, res) => {
     }
     const token = jwt.sign(payload, privateKey, { algorithm: 'RS256', expiresIn: '30d' })
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+    console.log('🎉 Token issued successfully')
     res.json({ token, expiresAt, licenseInfo: { expires_at: lic.expires_at, status: lic.status, appCode } })
   } catch (e) {
+    console.error('💥 Activation error:', e.message)
     res.status(500).json({ error: 'server_error' })
   }
 })
