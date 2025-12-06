@@ -284,7 +284,7 @@ class LicenseManager {
   /**
    * Check-in với server để verify device vẫn còn active
    * Phải gọi method này khi app start để đảm bảo device chưa bị admin gỡ
-   * @returns {Promise<Object>} - { valid: boolean, error?: string }
+   * @returns {Promise<Object>} - { valid: boolean, offline?: boolean, error?: string, token?: string }
    */
   checkInWithServer() {
     const tokenData = this.getStoredToken()
@@ -327,7 +327,8 @@ class LicenseManager {
         headers: {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(postData)
-        }
+        },
+        timeout: 10000 // 10 second timeout
       }
 
       const httpModule = url.protocol === 'https:' ? https : http
@@ -349,7 +350,20 @@ class LicenseManager {
           }
 
           if (res.statusCode === 200 && payload && payload.active === true && payload.status === 'active') {
-            return resolve({ valid: true, message: 'License active' })
+            // Check if server returned a new token (for renewal)
+            const result = { valid: true, message: 'License active' }
+            if (payload.token) {
+              // Save renewed token
+              const updatedTokenData = {
+                ...tokenData,
+                token: payload.token,
+                expiresAt: payload.expiresAt
+              }
+              fs.writeFileSync(this.tokenFile, JSON.stringify(updatedTokenData, null, 2), 'utf8')
+              result.token = payload.token
+              console.log('✅ Token renewed successfully')
+            }
+            return resolve(result)
           }
 
           const err = payload && (payload.status || payload.error) || `http_${res.statusCode}`
@@ -358,7 +372,23 @@ class LicenseManager {
       })
 
       req.on('error', (error) => {
-        resolve({ valid: false, error: `checkin_error:${error.message}` })
+        // Network error - server offline or no internet
+        console.log('⚠️ Check-in network error:', error.message)
+        resolve({
+          valid: true,
+          offline: true,
+          message: `Server offline, using cached license: ${error.message}`
+        })
+      })
+
+      req.on('timeout', () => {
+        console.log('⚠️ Check-in timeout')
+        req.destroy()
+        resolve({
+          valid: true,
+          offline: true,
+          message: 'Server timeout, using cached license'
+        })
       })
 
       req.write(postData)
