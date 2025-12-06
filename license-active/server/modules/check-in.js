@@ -107,7 +107,7 @@ router.post('/', async (req, res) => {
     )
 
     // 7. Renew JWT token with extended expiration
-    const privateKey = require('../config/keys.js').privateKey
+    const privateKey = getPrivateKey()
 
     // Get user info for token
     const userInfo = await query(

@@ -13,9 +13,22 @@ import checkInRouter from './modules/check-in.js'
 const app = express()
 
 // CORS must be FIRST - before any other middleware
-// CORS configuration for frontend domain
+// CORS configuration for frontend domain and Electron apps
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'https://license.dangthanhson.com',
+  origin: function (origin, callback) {
+    // Allow requests from frontend URL, localhost, and Electron apps (no origin)
+    const allowedOrigins = [
+      process.env.FRONTEND_URL || 'https://license.dangthanhson.com',
+      'http://localhost:3000',
+      'http://localhost:5173'
+    ]
+    // Electron apps don't send Origin header, so origin will be undefined
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true)
+    } else {
+      callback(null, true) // Allow all for API endpoints (activate, check-in)
+    }
+  },
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

@@ -312,12 +312,16 @@ class LicenseManager {
       const http = require('http')
       const url = new URL(`${this.serverUrl}/check-in`)
 
+      console.log('Check-in URL:', url.href)
+
       const postData = JSON.stringify({
         token: tokenData.token,
         appCode: this.appCode,
         deviceId,
         appVersion: this.appVersion
       })
+
+      console.log('Check-in request:', { appCode: this.appCode, deviceId: deviceId.substring(0, 10) + '...', appVersion: this.appVersion })
 
       const options = {
         hostname: url.hostname,
@@ -345,6 +349,9 @@ class LicenseManager {
             try {
               payload = JSON.parse(data)
             } catch (e) {
+              console.error('Failed to parse server response as JSON:', e.message)
+              console.error('Response status:', res.statusCode)
+              console.error('Response data:', data.substring(0, 500))
               return resolve({ valid: false, error: 'invalid_json' })
             }
           }
