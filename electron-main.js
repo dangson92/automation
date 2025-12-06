@@ -1267,15 +1267,15 @@ function showLicenseWindow() {
 </head>
 <body>
   <div class="container">
-    <h1>🔑 License Activation</h1>
-    <p>Please enter your license key to activate PromptFlow Desktop.</p>
+    <h1>🔑 Kích hoạt License</h1>
+    <p>Vui lòng nhập license key để kích hoạt PromptFlow Desktop.</p>
     <input
       type="text"
       id="licenseKey"
-      placeholder="XXXX-XXXX-XXXX-XXXX"
+      placeholder="Nhập license key (16 ký tự)"
       maxlength="19"
     />
-    <button id="activateBtn">Activate</button>
+    <button id="activateBtn">Kích hoạt</button>
     <div id="message"></div>
   </div>
 
@@ -1296,12 +1296,12 @@ function showLicenseWindow() {
 
       if (licenseKey.length !== 16) {
         message.className = 'error';
-        message.textContent = 'Please enter a valid license key (16 characters)';
+        message.textContent = '❌ Vui lòng nhập license key hợp lệ (16 ký tự)';
         return;
       }
 
       btn.disabled = true;
-      message.textContent = 'Activating...';
+      message.textContent = 'Đang kích hoạt...';
       message.className = '';
 
       try {
@@ -1309,18 +1309,18 @@ function showLicenseWindow() {
 
         if (result.success) {
           message.className = 'success';
-          message.textContent = 'License activated successfully!';
+          message.textContent = '✅ ' + (result.message || 'Đã kích hoạt thành công');
           setTimeout(() => {
             window.electronAPI.licenseActivated();
           }, 1500);
         } else {
           message.className = 'error';
-          message.textContent = result.error || 'Activation failed';
+          message.textContent = '❌ ' + (result.error || 'Kích hoạt không thành công');
           btn.disabled = false;
         }
       } catch (err) {
         message.className = 'error';
-        message.textContent = 'Activation failed: ' + err.message;
+        message.textContent = '❌ Kích hoạt không thành công: ' + err.message;
         btn.disabled = false;
       }
     });
@@ -1348,17 +1348,48 @@ function showLicenseWindow() {
   });
 }
 
+/**
+ * Map server error codes to Vietnamese messages
+ */
+function mapLicenseError(errorMessage) {
+  const errorMap = {
+    'invalid_input': 'Thông tin kích hoạt không hợp lệ',
+    'app_not_found': 'Ứng dụng không tồn tại',
+    'license_not_found': 'License key không tồn tại hoặc không hợp lệ',
+    'license_inactive': 'License đã bị vô hiệu hóa',
+    'license_expired': 'License đã hết hạn sử dụng',
+    'max_devices_reached': 'License đã được kích hoạt trên số thiết bị tối đa',
+    'server_error': 'Lỗi server, vui lòng thử lại sau',
+    'License activation failed': 'Kết nối đến server thất bại, kiểm tra internet',
+    'Invalid server response': 'Server trả về dữ liệu không hợp lệ'
+  };
+
+  // Check if error message contains any known error code
+  for (const [code, message] of Object.entries(errorMap)) {
+    if (errorMessage.includes(code)) {
+      return message;
+    }
+  }
+
+  // Default error message
+  return 'Kích hoạt không thành công: ' + errorMessage;
+}
+
 // IPC Handlers for license
 ipcMain.handle('license-activate', async (event, licenseKey) => {
   if (!licenseManager) {
-    return { success: false, error: 'License manager not initialized' };
+    return { success: false, error: 'License manager chưa được khởi tạo' };
   }
 
   try {
-    await licenseManager.activateLicense(licenseKey);
-    return { success: true };
+    console.log('Activating license...');
+    const result = await licenseManager.activateLicense(licenseKey);
+    console.log('✅ License activated successfully');
+    return { success: true, message: 'Đã kích hoạt thành công' };
   } catch (error) {
-    return { success: false, error: error.message };
+    console.error('❌ License activation failed:', error.message);
+    const mappedError = mapLicenseError(error.message);
+    return { success: false, error: mappedError };
   }
 });
 
