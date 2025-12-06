@@ -339,41 +339,26 @@ class LicenseManager {
         })
 
         res.on('end', () => {
-          try {
-            const response = JSON.parse(data)
-
-            if (res.statusCode !== 200) {
-              // Device đã bị gỡ hoặc license không còn valid
-              resolve({
-                valid: false,
-                error: response.error || 'Device is no longer active'
-              })
-              return
+          let payload = null
+          if (data && data.trim().length > 0) {
+            try {
+              payload = JSON.parse(data)
+            } catch (e) {
+              return resolve({ valid: false, error: 'invalid_json' })
             }
-
-            // Check-in thành công
-            resolve({
-              valid: true,
-              message: response.message
-            })
-          } catch (error) {
-            resolve({
-              valid: false,
-              error: 'Invalid server response'
-            })
           }
+
+          if (res.statusCode === 200 && payload && payload.active === true && payload.status === 'active') {
+            return resolve({ valid: true, message: 'License active' })
+          }
+
+          const err = payload && (payload.status || payload.error) || `http_${res.statusCode}`
+          resolve({ valid: false, error: String(err) })
         })
       })
 
       req.on('error', (error) => {
-        // Nếu không connect được server (offline), vẫn cho phép dùng app
-        // nhưng log warning
-        console.warn('Check-in failed (offline?):', error.message)
-        resolve({
-          valid: true,
-          offline: true,
-          message: 'Server offline, using cached license'
-        })
+        resolve({ valid: false, error: `checkin_error:${error.message}` })
       })
 
       req.write(postData)

@@ -11,6 +11,12 @@ import { getPrivateKey, getPublicKey } from '../config/keys.js'
 
 const router = express.Router()
 
+// Force JSON content-type for all responses on this router
+router.use((req, res, next) => {
+  res.set('Content-Type', 'application/json; charset=utf-8')
+  next()
+})
+
 /**
  * Hash deviceId với DEVICE_SALT (giống activate.js)
  */
@@ -40,19 +46,18 @@ router.post('/', async (req, res) => {
       const publicKey = getPublicKey()
       payload = jwt.verify(token, publicKey, { algorithms: ['RS256'] })
     } catch (error) {
-      console.error('JWT verification failed:', error.message)
-      return res.status(401).json({ error: 'invalid_token' })
+      return res.status(401).json({ active: false, status: 'invalid_token' })
     }
 
     // 2. Check appCode matches
     if (payload.appCode !== appCode) {
-      return res.status(400).json({ error: 'app_code_mismatch' })
+      return res.status(400).json({ active: false, status: 'app_code_mismatch' })
     }
 
     // 3. Hash deviceId and check if it matches payload
     const deviceHash = hashDeviceId(deviceId)
     if (payload.deviceHash !== deviceHash) {
-      return res.status(400).json({ error: 'device_mismatch' })
+      return res.status(400).json({ active: false, status: 'device_mismatch' })
     }
 
     // 4. Check if device still active in database
@@ -64,24 +69,14 @@ router.post('/', async (req, res) => {
        WHERE license_id=? AND device_hash=?`,
       [licenseId, deviceHash]
     )
-
-    if (activations.length === 0) {
-      // Device đã bị gỡ bởi admin
-      console.log(`❌ Check-in failed: Device removed by admin (licenseId=${licenseId}, deviceHash=${deviceHash})`)
-      return res.status(403).json({
-        error: 'device_removed',
-        message: 'Device has been removed by administrator. Please re-activate your license.'
-      })
+    if (activations.rows.length === 0) {
+      return res.status(403).json({ active: false, status: 'device_removed' })
     }
 
-    const activation = activations[0]
+    const activation = activations.rows[0]
 
     if (activation.status !== 'active') {
-      console.log(`❌ Check-in failed: Device not active (status=${activation.status})`)
-      return res.status(403).json({
-        error: 'device_inactive',
-        message: 'Device is no longer active.'
-      })
+      return res.status(403).json({ active: false, status: 'device_inactive' })
     }
 
     // 5. Check if license still active
@@ -89,28 +84,18 @@ router.post('/', async (req, res) => {
       `SELECT status, expires_at FROM licenses WHERE id=?`,
       [licenseId]
     )
-
-    if (licenses.length === 0) {
-      return res.status(404).json({ error: 'license_not_found' })
+    if (licenses.rows.length === 0) {
+      return res.status(404).json({ active: false, status: 'license_not_found' })
     }
 
-    const license = licenses[0]
+    const license = licenses.rows[0]
 
     if (license.status !== 'active') {
-      console.log(`❌ Check-in failed: License not active (status=${license.status})`)
-      return res.status(403).json({
-        error: 'license_inactive',
-        message: 'License is no longer active.'
-      })
+      return res.status(403).json({ active: false, status: 'license_inactive' })
     }
 
-    // Check expiration
     if (license.expires_at && new Date(license.expires_at) < new Date()) {
-      console.log(`❌ Check-in failed: License expired`)
-      return res.status(403).json({
-        error: 'license_expired',
-        message: 'License has expired.'
-      })
+      return res.status(403).json({ active: false, status: 'license_expired' })
     }
 
     // 6. Update last_checkin_at
@@ -121,19 +106,10 @@ router.post('/', async (req, res) => {
       [appVersion || null, activation.id]
     )
 
-    console.log(`✅ Check-in successful for licenseId=${licenseId}, deviceHash=${deviceHash}`)
-
-    res.json({
-      valid: true,
-      message: 'Check-in successful'
-    })
+    res.json({ active: true, status: 'active' })
 
   } catch (error) {
-    console.error('Check-in error:', error)
-    res.status(500).json({
-      error: 'server_error',
-      message: error.message
-    })
+    res.status(500).json({ active: false, status: 'server_error' })
   }
 })
 
