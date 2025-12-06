@@ -2369,9 +2369,9 @@ const App: React.FC = () => {
              {/* DATA GRID */}
              <div className="flex-1 overflow-auto custom-scrollbar relative">
                <table className="text-left border-collapse w-full" style={{ minWidth: '100%' }}>
-                 <thead className="bg-slate-100 sticky top-0 z-10 shadow-sm">
+                 <thead className="bg-slate-100 sticky top-0 z-20 shadow-sm">
                    <tr>
-                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-10 sticky left-0 bg-slate-100 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-10 sticky left-0 bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                        <input
                          type="checkbox"
                          checked={queue.length > 0 && selectedItemIds.size === queue.length}
@@ -2379,9 +2379,9 @@ const App: React.FC = () => {
                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                        />
                      </th>
-                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-12 sticky left-[64px] bg-slate-100 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">#</th>
-                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-[140px] min-w-[140px] sticky left-[136px] bg-slate-100 z-20 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Trạng thái</th>
-                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 min-w-[200px] w-64 sticky left-[300px] bg-slate-100 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Input Gốc</th>
+                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-12 sticky left-[64px] bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">#</th>
+                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-[140px] min-w-[140px] sticky left-[136px] bg-slate-100 z-30 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Trạng thái</th>
+                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 min-w-[200px] w-64 sticky left-[300px] bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Input Gốc</th>
                      {config.steps.map(step => (
                         <th key={step.id} className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 min-w-[250px] w-80">
                            <div className="flex items-center space-x-1">
