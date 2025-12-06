@@ -565,13 +565,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }
                 </div>
             </div>
             <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-gray-600">
+                <table className="w-full text-left text-sm text-gray-600 relative">
                     <thead className="bg-gray-50 text-gray-700 uppercase font-medium text-xs">
                         <tr>
-                            <th className="px-6 py-3">License Key</th>
-                            <th className="px-6 py-3">Ứng dụng</th>
-                            <th className="px-6 py-3">Owner (Email)</th>
-                            <th className="px-6 py-3">Thời hạn</th>
+                            <th className="px-6 py-3 sticky left-0 bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">License Key</th>
+                            <th className="px-6 py-3 sticky left-[220px] bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Ứng dụng</th>
+                            <th className="px-6 py-3 sticky left-[380px] bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Owner (Email)</th>
+                            <th className="px-6 py-3 sticky left-[580px] bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Thời hạn</th>
                             <th className="px-6 py-3">Số máy active</th>
                             <th className="px-6 py-3">Status</th>
                             <th className="px-6 py-3">Ngày tạo</th>
@@ -589,16 +589,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }
                             </tr>
                         )}
                         {filteredKeys.map((key) => (
-                            <tr key={key.id} className="hover:bg-gray-50 transition-colors">
-                                <td className="px-6 py-3 font-mono text-xs text-gray-800">{key.key}</td>
-                                <td className="px-6 py-3">
+                            <tr key={key.id} className="group hover:bg-gray-50 transition-colors">
+                                <td className="px-6 py-3 font-mono text-xs text-gray-800 sticky left-0 bg-white group-hover:bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">{key.key}</td>
+                                <td className="px-6 py-3 sticky left-[220px] bg-white group-hover:bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                                     <div className="text-sm">
                                         <div className="font-medium text-gray-800">{key.appName}</div>
                                         <div className="text-xs text-gray-500">{key.appCode}</div>
                                     </div>
                                 </td>
-                                <td className="px-6 py-3 text-gray-500">{key.owner || '-'}</td>
-                                <td className="px-6 py-3 text-gray-500">{formatDate(key.expiresAt)}</td>
+                                <td className="px-6 py-3 text-gray-500 sticky left-[380px] bg-white group-hover:bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">{key.owner || '-'}</td>
+                                <td className="px-6 py-3 text-gray-500 sticky left-[580px] bg-white group-hover:bg-gray-50 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">{formatDate(key.expiresAt)}</td>
                                 <td className="px-6 py-3">
                                     <span className="text-sm font-medium text-gray-700">
                                         {(key as any).activeDevices || 0} / {key.maxDevices}
