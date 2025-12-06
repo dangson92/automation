@@ -2447,7 +2447,17 @@ const App: React.FC = () => {
                                  }}
                               >
                                  {result ? (
-                                    <div className="break-words whitespace-pre-wrap" title={result.response}>
+                                    <div
+                                      className="break-words line-clamp-4"
+                                      style={{
+                                        display: '-webkit-box',
+                                        WebkitLineClamp: 4,
+                                        WebkitBoxOrient: 'vertical',
+                                        overflow: 'hidden',
+                                        wordBreak: 'break-word'
+                                      }}
+                                      title={result.response}
+                                    >
                                        {result.response}
                                     </div>
                                  ) : isCurrent ? (
