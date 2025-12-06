@@ -98,13 +98,28 @@ router.post('/', async (req, res) => {
       return res.status(403).json({ active: false, status: 'license_expired' })
     }
 
-    // 6. Update last_checkin_at
-    await query(
-      `UPDATE activations
-       SET last_checkin_at=NOW(), app_version=?
-       WHERE id=?`,
-      [appVersion || null, activation.id]
-    )
+    // 6. Update last_checkin_at (and app_version if column exists)
+    try {
+      await query(
+        `UPDATE activations
+         SET last_checkin_at=NOW(), app_version=?
+         WHERE id=?`,
+        [appVersion || null, activation.id]
+      )
+    } catch (error) {
+      // Fallback: update without app_version if column doesn't exist yet
+      if (error.code === 'ER_BAD_FIELD_ERROR') {
+        console.warn('app_version column not found, updating without it')
+        await query(
+          `UPDATE activations
+           SET last_checkin_at=NOW()
+           WHERE id=?`,
+          [activation.id]
+        )
+      } else {
+        throw error
+      }
+    }
 
     // 7. Renew JWT token with extended expiration
     const privateKey = getPrivateKey()
