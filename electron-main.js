@@ -1175,9 +1175,10 @@ function showLicenseWindow() {
   return new Promise((resolve) => {
     licenseWindow = new BrowserWindow({
       width: 500,
-      height: 400,
+      height: 450,
       resizable: false,
-      frame: true,
+      frame: false,
+      transparent: true,
       webPreferences: {
         preload: path.join(__dirname, 'electron-preload.js'),
         nodeIntegration: false,
@@ -1193,23 +1194,67 @@ function showLicenseWindow() {
   <meta charset="UTF-8">
   <title>License Activation</title>
   <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      padding: 40px;
+      background: transparent;
+      overflow: hidden;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .window {
+      width: 500px;
+      height: 450px;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      margin: 0;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+      overflow: hidden;
+    }
+    .titlebar {
+      -webkit-app-region: drag;
+      height: 40px;
+      background: rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .titlebar-text {
+      color: white;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    .close-btn {
+      -webkit-app-region: no-drag;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: none;
+      background: rgba(255,255,255,0.1);
+      color: white;
+      cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 100vh;
+      transition: all 0.2s;
+      font-size: 18px;
+      line-height: 1;
+    }
+    .close-btn:hover {
+      background: rgba(255,255,255,0.2);
     }
     .container {
       background: white;
+      margin: 20px;
       padding: 30px;
       border-radius: 12px;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-      max-width: 400px;
-      width: 100%;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
     }
     h1 {
       margin: 0 0 20px 0;
@@ -1229,6 +1274,8 @@ function showLicenseWindow() {
       box-sizing: border-box;
       margin-bottom: 15px;
       font-family: monospace;
+      -webkit-user-select: text;
+      user-select: text;
     }
     input:focus {
       outline: none;
@@ -1257,26 +1304,36 @@ function showLicenseWindow() {
       color: #e53e3e;
       margin-top: 10px;
       font-size: 14px;
+      -webkit-user-select: text;
+      user-select: text;
     }
     .success {
       color: #38a169;
       margin-top: 10px;
       font-size: 14px;
+      -webkit-user-select: text;
+      user-select: text;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>🔑 Kích hoạt License</h1>
-    <p>Vui lòng nhập license key để kích hoạt PromptFlow Desktop.</p>
-    <input
-      type="text"
-      id="licenseKey"
-      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-      maxlength="36"
-    />
-    <button id="activateBtn">Kích hoạt</button>
-    <div id="message"></div>
+  <div class="window">
+    <div class="titlebar">
+      <div class="titlebar-text">PromptFlow Desktop</div>
+      <button class="close-btn" onclick="window.close()">×</button>
+    </div>
+    <div class="container">
+      <h1>🔑 Kích hoạt License</h1>
+      <p>Vui lòng nhập license key để kích hoạt PromptFlow Desktop.</p>
+      <input
+        type="text"
+        id="licenseKey"
+        placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+        maxlength="36"
+      />
+      <button id="activateBtn">Kích hoạt</button>
+      <div id="message"></div>
+    </div>
   </div>
 
   <script>
