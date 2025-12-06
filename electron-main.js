@@ -1229,108 +1229,113 @@ function showLicenseWindow() {
     .window {
       width: 500px;
       height: 450px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border-radius: 16px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+      background: #f5f5f5;
+      border-radius: 12px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.15);
       overflow: hidden;
     }
     .titlebar {
       -webkit-app-region: drag;
-      height: 40px;
-      background: rgba(255,255,255,0.1);
+      height: 44px;
+      background: #fff;
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 0 16px;
-      border-bottom: 1px solid rgba(255,255,255,0.1);
+      border-bottom: 1px solid #e0e0e0;
     }
     .titlebar-text {
-      color: white;
-      font-size: 13px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
+      color: #333;
+      font-size: 14px;
+      font-weight: 500;
     }
     .close-btn {
       -webkit-app-region: no-drag;
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
       border: none;
-      background: rgba(255,255,255,0.1);
-      color: white;
+      background: #fff;
+      color: #666;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       transition: all 0.2s;
-      font-size: 18px;
+      font-size: 20px;
       line-height: 1;
     }
     .close-btn:hover {
-      background: rgba(255,255,255,0.2);
+      background: #f0f0f0;
+      color: #333;
     }
     .container {
       background: white;
-      margin: 20px;
-      padding: 30px;
-      border-radius: 12px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      margin: 24px;
+      padding: 32px;
+      border-radius: 8px;
+      border: 1px solid #e0e0e0;
     }
     h1 {
-      margin: 0 0 20px 0;
-      font-size: 24px;
-      color: #333;
+      margin: 0 0 8px 0;
+      font-size: 20px;
+      color: #222;
+      font-weight: 600;
     }
     p {
       color: #666;
-      margin-bottom: 20px;
+      margin-bottom: 24px;
+      font-size: 14px;
+      line-height: 1.5;
     }
     input {
       width: 100%;
-      padding: 12px;
-      border: 2px solid #e0e0e0;
+      padding: 11px 12px;
+      border: 1px solid #d0d0d0;
       border-radius: 6px;
       font-size: 14px;
       box-sizing: border-box;
-      margin-bottom: 15px;
+      margin-bottom: 16px;
       font-family: monospace;
       -webkit-user-select: text;
       user-select: text;
+      background: #fafafa;
     }
     input:focus {
       outline: none;
-      border-color: #667eea;
+      border-color: #666;
+      background: #fff;
     }
     button {
       width: 100%;
-      padding: 12px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 11px 12px;
+      background: #333;
       color: white;
       border: none;
       border-radius: 6px;
-      font-size: 16px;
-      font-weight: 600;
+      font-size: 14px;
+      font-weight: 500;
       cursor: pointer;
-      transition: opacity 0.2s;
+      transition: background 0.2s;
     }
     button:hover {
-      opacity: 0.9;
+      background: #444;
     }
     button:disabled {
-      opacity: 0.5;
+      background: #999;
       cursor: not-allowed;
     }
     .error {
-      color: #e53e3e;
-      margin-top: 10px;
-      font-size: 14px;
+      color: #d32f2f;
+      margin-top: 12px;
+      font-size: 13px;
       -webkit-user-select: text;
       user-select: text;
     }
     .success {
-      color: #38a169;
-      margin-top: 10px;
-      font-size: 14px;
+      color: #388e3c;
+      margin-top: 12px;
+      font-size: 13px;
       -webkit-user-select: text;
       user-select: text;
     }
@@ -1343,8 +1348,8 @@ function showLicenseWindow() {
       <button class="close-btn" onclick="window.close()">×</button>
     </div>
     <div class="container">
-      <h1>🔑 Kích hoạt License</h1>
-      <p>Vui lòng nhập license key để kích hoạt PromptFlow Desktop.</p>
+      <h1>Kích hoạt License</h1>
+      <p>Nhập license key để kích hoạt ứng dụng</p>
       <input
         type="text"
         id="licenseKey"
@@ -1532,18 +1537,35 @@ ipcMain.handle('license-remove', async () => {
 });
 
 ipcMain.handle('license-activated', async () => {
+  // Verify license one more time
+  const verification = licenseManager.verifyLicenseToken();
+
+  if (!verification.valid) {
+    return { success: false, error: 'License verification failed' };
+  }
+
+  // IMPORTANT: Check-in with server to ensure license is valid on server side
+  console.log('License token valid, checking in with server after activation...');
+  const checkInResult = await licenseManager.checkInWithServer();
+
+  if (!checkInResult.valid && !checkInResult.offline) {
+    // Server rejected the license
+    console.log('❌ Check-in after activation failed:', checkInResult.error);
+    licenseManager.clearLicense();
+    return { success: false, error: 'Server rejected license: ' + checkInResult.error };
+  }
+
+  if (checkInResult.offline) {
+    console.log('⚠️ Server offline after activation, using cached license');
+  } else {
+    console.log('✅ Check-in after activation successful');
+  }
+
   // Close license window and open main app
   if (licenseWindow && !licenseWindow.isDestroyed()) {
     licenseWindow.close();
   }
 
-  // Verify license one more time
-  const verification = licenseManager.verifyLicenseToken();
-
-  if (verification.valid) {
-    createWindow();
-    return { success: true };
-  } else {
-    return { success: false, error: 'License verification failed' };
-  }
+  createWindow();
+  return { success: true };
 });
