@@ -18,6 +18,7 @@
       "dist/**/*",
       "electron-main.js",
       "electron-preload.js",
+      "license-manager.js",
       "package.json"
     ],
     "win": {
@@ -41,6 +42,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.30.0",
+    "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.554.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
