@@ -263,6 +263,23 @@ class LicenseManager {
       }
     }
   }
+
+  /**
+   * Lấy thông tin user từ license token
+   * @returns {Object|null} - { email: string, name: string } hoặc null nếu không có token
+   */
+  getUserInfo() {
+    const verification = this.verifyLicenseToken()
+
+    if (!verification.valid || !verification.payload) {
+      return null
+    }
+
+    return {
+      email: verification.payload.userEmail || '',
+      name: verification.payload.userName || '',
+    }
+  }
 }
 
 module.exports = LicenseManager

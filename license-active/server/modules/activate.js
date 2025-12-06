@@ -30,7 +30,10 @@ router.post('/', async (req, res) => {
     if (!appR.rows.length) return res.status(404).json({ error: 'app_not_found' })
     const appId = appR.rows[0].id
     const licR = await query(
-      `SELECT id,max_devices,expires_at,status FROM licenses WHERE license_key=? AND app_id=?`,
+      `SELECT l.id, l.max_devices, l.expires_at, l.status, u.email, u.full_name
+       FROM licenses l
+       JOIN users u ON u.id = l.user_id
+       WHERE l.license_key=? AND l.app_id=?`,
       [licenseKey, appId]
     )
     if (!licR.rows.length) return res.status(404).json({ error: 'license_not_found' })
@@ -74,11 +77,13 @@ router.post('/', async (req, res) => {
       licenseStatus: lic.status,
       maxDevices: lic.max_devices,
       appVersion: appVersion || null,
+      userEmail: lic.email,
+      userName: lic.full_name,
     }
     const token = jwt.sign(payload, privateKey, { algorithm: 'RS256', expiresIn: '30d' })
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-    console.log('🎉 Token issued successfully')
-    res.json({ token, expiresAt, licenseInfo: { expires_at: lic.expires_at, status: lic.status, appCode } })
+    console.log('🎉 Token issued successfully for user:', lic.email)
+    res.json({ token, expiresAt, licenseInfo: { expires_at: lic.expires_at, status: lic.status, appCode, userEmail: lic.email, userName: lic.full_name } })
   } catch (e) {
     console.error('💥 Activation error:', e.message)
     res.status(500).json({ error: 'server_error' })

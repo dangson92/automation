@@ -1494,6 +1494,14 @@ ipcMain.handle('license-info', async () => {
   return licenseManager.getLicenseStatus();
 });
 
+ipcMain.handle('get-user-info', async () => {
+  if (!licenseManager) {
+    return null;
+  }
+
+  return licenseManager.getUserInfo();
+});
+
 ipcMain.handle('license-remove', async () => {
   if (!licenseManager) {
     return { success: false };
