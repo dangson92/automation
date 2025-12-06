@@ -98,7 +98,7 @@ router.post('/', async (req, res) => {
       return res.status(403).json({ active: false, status: 'license_expired' })
     }
 
-    // 6. Update last_checkin_at
+    // 6. Update last_checkin_at and app_version
     await query(
       `UPDATE activations
        SET last_checkin_at=NOW(), app_version=?
