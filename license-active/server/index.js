@@ -8,6 +8,7 @@ import authRouter from './modules/auth.js'
 import userRouter from './modules/user.js'
 import adminRouter from './modules/admin.js'
 import activateRouter from './modules/activate.js'
+import checkInRouter from './modules/check-in.js'
 
 const app = express()
 
@@ -48,6 +49,7 @@ app.use('/auth', authRouter)
 app.use('/user', userRouter)
 app.use('/admin', adminRouter)
 app.use('/activate', activateRouter)
+app.use('/check-in', checkInRouter)
 
 const port = process.env.PORT ? Number(process.env.PORT) : 3000
 app.listen(port, () => {})

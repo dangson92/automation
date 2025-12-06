@@ -36,7 +36,7 @@ app.whenReady().then(async () => {
       configDir: path.join(app.getPath('userData'), 'license')
     });
 
-    // Check license first
+    // Check license first (local JWT verification)
     const verification = licenseManager.verifyLicenseToken();
 
     if (!verification.valid) {
@@ -44,9 +44,29 @@ app.whenReady().then(async () => {
       // Show license activation window
       await showLicenseWindow();
     } else {
-      console.log('License valid, starting app');
-      // License valid, proceed to main app
-      createWindow();
+      // JWT valid, now check-in with server to ensure device not removed
+      console.log('License token valid, checking in with server...');
+      const checkInResult = await licenseManager.checkInWithServer();
+
+      if (!checkInResult.valid && !checkInResult.offline) {
+        // Device đã bị gỡ hoặc license không còn active trên server
+        console.log('❌ Check-in failed:', checkInResult.error);
+        console.log('License has been revoked or device removed. Clearing local token...');
+
+        // Xóa token local
+        licenseManager.clearLicense();
+
+        // Show license activation window
+        await showLicenseWindow();
+      } else {
+        if (checkInResult.offline) {
+          console.log('⚠️ Server offline, using cached license');
+        } else {
+          console.log('✅ Check-in successful, license valid');
+        }
+        // License valid, proceed to main app
+        createWindow();
+      }
     }
   } catch (error) {
     console.error('Failed to initialize license manager:', error.message);
