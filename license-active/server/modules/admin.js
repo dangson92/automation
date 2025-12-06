@@ -65,8 +65,14 @@ router.get('/licenses', requireAdmin, async (req, res) => {
     }
     const where = cond.length ? `WHERE ${cond.join(' AND ')}` : ''
     const r = await query(
-      `SELECT l.id,l.license_key,l.expires_at,l.status,l.max_devices,l.created_at,u.email,a.code AS app_code,a.name AS app_name
-       FROM licenses l JOIN users u ON u.id=l.user_id JOIN apps a ON a.id=l.app_id ${where} ORDER BY l.id DESC`,
+      `SELECT l.id, l.license_key, l.expires_at, l.status, l.max_devices, l.created_at,
+              u.email, a.code AS app_code, a.name AS app_name,
+              (SELECT COUNT(*) FROM activations act WHERE act.license_id = l.id AND act.status = 'active') AS active_devices
+       FROM licenses l
+       JOIN users u ON u.id=l.user_id
+       JOIN apps a ON a.id=l.app_id
+       ${where}
+       ORDER BY l.id DESC`,
       params
     )
     res.json({ items: r.rows })

@@ -38,6 +38,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }
   const [sortBy, setSortBy] = useState<'created' | 'expires'>('created');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
+  // Device removal popup state
+  const [devicePopup, setDevicePopup] = useState<{
+    licenseId: string;
+    devices: any[];
+    selectedDevices: string[];
+  } | null>(null);
+
   // Load data
   useEffect(() => {
     loadData();
@@ -68,6 +75,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }
         appCode: lic.app_code,
         appName: lic.app_name,
         maxDevices: lic.max_devices,
+        activeDevices: lic.active_devices || 0, // Add active devices count
       }));
 
       setKeys(transformedKeys);
@@ -214,19 +222,47 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }
         return;
       }
 
-      const deviceList = details.activations.map((a: any, i: number) =>
-        `${i + 1}. Device Hash: ${a.device_hash} (Status: ${a.status})`
-      ).join('\n');
+      // Open popup with device list
+      setDevicePopup({
+        licenseId,
+        devices: details.activations,
+        selectedDevices: [],
+      });
+    } catch (error: any) {
+      alert(`Không thể tải danh sách devices: ${error.message}`);
+    }
+  };
 
-      const deviceHash = prompt(`Danh sách devices:\n\n${deviceList}\n\nNhập device hash muốn gỡ:`);
-      if (!deviceHash) return;
+  const handleConfirmRemoveDevices = async () => {
+    if (!devicePopup || devicePopup.selectedDevices.length === 0) {
+      alert('Vui lòng chọn ít nhất 1 device để gỡ!');
+      return;
+    }
 
-      await api.admin.removeDevice(Number(licenseId), deviceHash);
-      alert('Đã gỡ device khỏi license thành công!');
+    try {
+      // Remove devices one by one
+      for (const deviceHash of devicePopup.selectedDevices) {
+        await api.admin.removeDevice(Number(devicePopup.licenseId), deviceHash);
+      }
+
+      alert(`Đã gỡ ${devicePopup.selectedDevices.length} device thành công!`);
+      setDevicePopup(null);
       await loadData();
     } catch (error: any) {
       alert(`Không thể gỡ device: ${error.message}`);
     }
+  };
+
+  const toggleDeviceSelection = (deviceHash: string) => {
+    if (!devicePopup) return;
+
+    const isSelected = devicePopup.selectedDevices.includes(deviceHash);
+    setDevicePopup({
+      ...devicePopup,
+      selectedDevices: isSelected
+        ? devicePopup.selectedDevices.filter(h => h !== deviceHash)
+        : [...devicePopup.selectedDevices, deviceHash],
+    });
   };
 
   const handleGenerateInsight = async () => {
@@ -536,10 +572,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }
                             <th className="px-6 py-3">Ứng dụng</th>
                             <th className="px-6 py-3">Owner (Email)</th>
                             <th className="px-6 py-3">Thời hạn</th>
-                            <th className="px-6 py-3">HWID</th>
+                            <th className="px-6 py-3">Số máy active</th>
                             <th className="px-6 py-3">Status</th>
                             <th className="px-6 py-3">Ngày tạo</th>
-                            <th className="px-6 py-3 text-right">Actions</th>
+                            <th className="px-6 py-3 text-center w-32">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -563,7 +599,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }
                                 </td>
                                 <td className="px-6 py-3 text-gray-500">{key.owner || '-'}</td>
                                 <td className="px-6 py-3 text-gray-500">{formatDate(key.expiresAt)}</td>
-                                <td className="px-6 py-3 text-gray-500 text-xs">{key.hwid || '-'}</td>
+                                <td className="px-6 py-3">
+                                    <span className="text-sm font-medium text-gray-700">
+                                        {(key as any).activeDevices || 0} / {key.maxDevices}
+                                    </span>
+                                </td>
                                 <td className="px-6 py-3">
                                     <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(key.status)}`}>
                                         {key.status}
@@ -571,33 +611,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }
                                 </td>
                                 <td className="px-6 py-3 text-gray-500">{formatDate(key.createdAt)}</td>
                                 <td className="px-6 py-3">
-                                    <div className="flex justify-end space-x-2">
+                                    <div className="flex justify-center gap-1">
                                         {key.status !== KeyStatus.REVOKED && (
                                             <>
                                                 <button
                                                     onClick={() => handleRevokeKey(key.id)}
-                                                    className="text-orange-500 hover:text-orange-700 text-xs font-medium"
+                                                    className="px-2 py-1 bg-orange-50 text-orange-600 hover:bg-orange-100 rounded text-xs font-medium transition-colors"
                                                     title="Vô hiệu hóa"
                                                 >
                                                     Vô hiệu
                                                 </button>
                                                 <button
                                                     onClick={() => handleExtendKey(key.id)}
-                                                    className="text-blue-500 hover:text-blue-700 text-xs font-medium"
+                                                    className="px-2 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded text-xs font-medium transition-colors"
                                                     title="Gia hạn"
                                                 >
                                                     Gia hạn
                                                 </button>
                                                 <button
-                                                    onClick={() => handleTransferKey(key.id)}
-                                                    className="text-purple-500 hover:text-purple-700 text-xs font-medium"
-                                                    title="Chuyển user"
-                                                >
-                                                    Chuyển
-                                                </button>
-                                                <button
                                                     onClick={() => handleRemoveDevice(key.id)}
-                                                    className="text-yellow-600 hover:text-yellow-800 text-xs font-medium"
+                                                    className="px-2 py-1 bg-yellow-50 text-yellow-700 hover:bg-yellow-100 rounded text-xs font-medium transition-colors"
                                                     title="Gỡ khỏi máy"
                                                 >
                                                     Gỡ máy
@@ -606,7 +639,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }
                                         )}
                                         <button
                                             onClick={() => handleDeleteKey(key.id)}
-                                            className="text-red-500 hover:text-red-700 text-xs font-medium"
+                                            className="px-2 py-1 bg-red-50 text-red-600 hover:bg-red-100 rounded text-xs font-medium transition-colors"
                                             title="Xóa"
                                         >
                                             Xóa
@@ -621,6 +654,82 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ user, onLogout }
         </div>
 
       </div>
+
+      {/* Device Removal Popup */}
+      {devicePopup && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col">
+            <div className="p-4 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-800">Chọn thiết bị cần gỡ</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Đã chọn: {devicePopup.selectedDevices.length} / {devicePopup.devices.length}
+              </p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="space-y-2">
+                {devicePopup.devices.map((device: any, index: number) => (
+                  <div
+                    key={device.device_hash}
+                    className="flex items-start space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
+                    onClick={() => toggleDeviceSelection(device.device_hash)}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={devicePopup.selectedDevices.includes(device.device_hash)}
+                      onChange={() => {}}
+                      className="mt-1 h-4 w-4 text-indigo-600 rounded border-gray-300"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-gray-800">Device #{index + 1}</span>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                          device.status === 'active'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {device.status}
+                        </span>
+                      </div>
+                      <div className="text-xs font-mono text-gray-600 bg-gray-50 p-2 rounded break-all">
+                        {device.device_hash}
+                      </div>
+                      <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-gray-500">
+                        <div>
+                          <span className="font-medium">Kích hoạt lần đầu:</span>
+                          <br />
+                          {new Date(device.first_activated_at).toLocaleString('vi-VN')}
+                        </div>
+                        <div>
+                          <span className="font-medium">Checkin cuối:</span>
+                          <br />
+                          {new Date(device.last_checkin_at).toLocaleString('vi-VN')}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-gray-200 flex justify-end space-x-2">
+              <button
+                onClick={() => setDevicePopup(null)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleConfirmRemoveDevices}
+                disabled={devicePopup.selectedDevices.length === 0}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Gỡ {devicePopup.selectedDevices.length > 0 ? `(${devicePopup.selectedDevices.length})` : ''}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
