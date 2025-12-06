@@ -81,7 +81,7 @@ router.post('/', async (req, res) => {
 
     // 5. Check if license still active
     const licenses = await query(
-      `SELECT status, expires_at FROM licenses WHERE id=?`,
+      `SELECT status, expires_at, max_devices FROM licenses WHERE id=?`,
       [licenseId]
     )
     if (licenses.rows.length === 0) {
@@ -106,9 +106,43 @@ router.post('/', async (req, res) => {
       [appVersion || null, activation.id]
     )
 
-    res.json({ active: true, status: 'active' })
+    // 7. Renew JWT token with extended expiration
+    const privateKey = require('../config/keys.js').privateKey
+
+    // Get user info for token
+    const userInfo = await query(
+      `SELECT u.email, u.full_name
+       FROM licenses l
+       JOIN users u ON u.id = l.user_id
+       WHERE l.id=?`,
+      [licenseId]
+    )
+
+    const user = userInfo.rows[0] || { email: '', full_name: '' }
+
+    const newPayload = {
+      licenseId: licenseId,
+      appCode,
+      deviceHash,
+      licenseStatus: license.status,
+      maxDevices: license.max_devices,
+      appVersion: appVersion || null,
+      userEmail: user.email,
+      userName: user.full_name,
+    }
+
+    const newToken = jwt.sign(newPayload, privateKey, { algorithm: 'RS256', expiresIn: '30d' })
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+
+    res.json({
+      active: true,
+      status: 'active',
+      token: newToken,
+      expiresAt: expiresAt
+    })
 
   } catch (error) {
+    console.error('Check-in error:', error)
     res.status(500).json({ active: false, status: 'server_error' })
   }
 })
