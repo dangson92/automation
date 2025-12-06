@@ -66,4 +66,14 @@ if (process.env.PUBLIC_KEY_PATH) {
   }
 }
 
+// Export as functions for consistency with imports
+export function getPrivateKey() {
+  return privateKey
+}
+
+export function getPublicKey() {
+  return publicKey
+}
+
+// Also export raw values for backward compatibility
 export { privateKey, publicKey }
