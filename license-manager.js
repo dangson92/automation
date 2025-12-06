@@ -280,6 +280,106 @@ class LicenseManager {
       name: verification.payload.userName || '',
     }
   }
+
+  /**
+   * Check-in với server để verify device vẫn còn active
+   * Phải gọi method này khi app start để đảm bảo device chưa bị admin gỡ
+   * @returns {Promise<Object>} - { valid: boolean, error?: string }
+   */
+  checkInWithServer() {
+    const tokenData = this.getStoredToken()
+
+    if (!tokenData || !tokenData.token) {
+      return Promise.resolve({
+        valid: false,
+        error: 'No token found'
+      })
+    }
+
+    // Verify JWT locally first
+    const verification = this.verifyLicenseToken()
+    if (!verification.valid) {
+      return Promise.resolve({
+        valid: false,
+        error: verification.error
+      })
+    }
+
+    const deviceId = this.getOrCreateDeviceId()
+
+    return new Promise((resolve, reject) => {
+      const https = require('https')
+      const http = require('http')
+      const url = new URL(`${this.serverUrl}/check-in`)
+
+      const postData = JSON.stringify({
+        token: tokenData.token,
+        appCode: this.appCode,
+        deviceId,
+        appVersion: this.appVersion
+      })
+
+      const options = {
+        hostname: url.hostname,
+        port: url.port || (url.protocol === 'https:' ? 443 : 80),
+        path: url.pathname,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData)
+        }
+      }
+
+      const httpModule = url.protocol === 'https:' ? https : http
+      const req = httpModule.request(options, (res) => {
+        let data = ''
+
+        res.on('data', (chunk) => {
+          data += chunk
+        })
+
+        res.on('end', () => {
+          try {
+            const response = JSON.parse(data)
+
+            if (res.statusCode !== 200) {
+              // Device đã bị gỡ hoặc license không còn valid
+              resolve({
+                valid: false,
+                error: response.error || 'Device is no longer active'
+              })
+              return
+            }
+
+            // Check-in thành công
+            resolve({
+              valid: true,
+              message: response.message
+            })
+          } catch (error) {
+            resolve({
+              valid: false,
+              error: 'Invalid server response'
+            })
+          }
+        })
+      })
+
+      req.on('error', (error) => {
+        // Nếu không connect được server (offline), vẫn cho phép dùng app
+        // nhưng log warning
+        console.warn('Check-in failed (offline?):', error.message)
+        resolve({
+          valid: true,
+          offline: true,
+          message: 'Server offline, using cached license'
+        })
+      })
+
+      req.write(postData)
+      req.end()
+    })
+  }
 }
 
 module.exports = LicenseManager
