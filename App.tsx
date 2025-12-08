@@ -589,13 +589,24 @@ const App: React.FC = () => {
         prompt: promptToSend,
         headless
       });
-      setRerunningStep(null);
       if (res.error) {
+        setRerunningStep(null);
         alert('Lỗi chạy lại: ' + res.error);
         return;
       }
-      const newResponse = res.text || '';
+      let newResponse = res.text || '';
       stepUrl = res.url || stepUrl;
+
+      // Process image generation if step has imageConfig enabled
+      let imageData: any[] = [];
+      if (step.imageConfig?.enabled) {
+        const imageResult = await processImageGeneration(newResponse, step, itemId);
+        newResponse = imageResult.updatedResponse;
+        imageData = imageResult.imageData;
+      }
+
+      setRerunningStep(null);
+
       setQueue(prev => prev.map(q => {
         if (q.id !== itemId) return q;
         const existingIndex = (q.results || []).findIndex(r => r.stepId === step.id);
@@ -605,7 +616,8 @@ const App: React.FC = () => {
           prompt: promptToSend,
           response: newResponse,
           timestamp: Date.now(),
-          url: stepUrl
+          url: stepUrl,
+          imageData: imageData.length > 0 ? imageData : undefined
         };
         let newResults: StepResult[];
         if (existingIndex >= 0) {
