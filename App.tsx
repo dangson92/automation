@@ -1481,9 +1481,9 @@ const App: React.FC = () => {
 
   // Calculate input column width and line clamp based on number of steps
   const stepCount = config.steps.length;
-  const inputColWidth = stepCount <= 2 ? 'max-w-[400px]' : stepCount <= 4 ? 'max-w-[300px]' : 'max-w-[250px]';
+  const inputColWidth = stepCount <= 2 ? 'w-64 max-w-[256px]' : stepCount <= 4 ? 'w-56 max-w-[224px]' : 'w-48 max-w-[192px]';
   const inputColClamp = stepCount <= 2 ? 'line-clamp-3' : 'line-clamp-2';
-  const stepColWidth = stepCount <= 2 ? 'w-80 min-w-[300px] max-w-[500px]' : stepCount <= 4 ? 'w-72 min-w-[250px] max-w-[400px]' : 'w-64 min-w-[220px] max-w-[350px]';
+  const stepColWidth = stepCount <= 2 ? 'w-80 min-w-[320px] max-w-[500px]' : stepCount <= 4 ? 'w-72 min-w-[288px] max-w-[400px]' : 'w-64 min-w-[256px] max-w-[350px]';
   const stepColClamp = stepCount <= 2 ? 4 : stepCount <= 4 ? 3 : 3;
 
   const selectedItem = queue.find(i => i.id === selectedItemId);
@@ -2522,7 +2522,7 @@ const App: React.FC = () => {
                      </th>
                      <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-12 sticky left-[64px] bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">#</th>
                      <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-[140px] min-w-[140px] sticky left-[136px] bg-slate-100 z-30 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Trạng thái</th>
-                     <th className={`p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 min-w-[200px] ${inputColWidth} sticky left-[300px] bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]`}>Input Gốc</th>
+                     <th className={`p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 ${inputColWidth} sticky left-[300px] bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]`}>Input Gốc</th>
                      {config.steps.map(step => (
                         <th key={step.id} className={`p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 ${stepColWidth}`}>
                            <div className="flex items-center space-x-1">
@@ -2568,7 +2568,7 @@ const App: React.FC = () => {
                              )}
                            </div>
                         </td>
-                        <td className={`p-3 text-sm text-slate-800 font-medium min-w-[200px] ${inputColWidth} align-top cursor-pointer sticky left-[300px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isSelected ? 'bg-indigo-50' : 'bg-white group-hover:bg-indigo-50/50'}`} onClick={() => setSelectedItemId(item.id)}>
+                        <td className={`p-3 text-sm text-slate-800 font-medium ${inputColWidth} align-top cursor-pointer sticky left-[300px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isSelected ? 'bg-indigo-50' : 'bg-white group-hover:bg-indigo-50/50'}`} onClick={() => setSelectedItemId(item.id)}>
                            <div className={`break-words whitespace-normal ${inputColClamp}`}>{item.originalPrompt}</div>
                         </td>
 
