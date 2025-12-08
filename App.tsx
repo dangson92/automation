@@ -1482,20 +1482,26 @@ const App: React.FC = () => {
   // Calculate column widths dynamically based on number of steps
   const stepCount = config.steps.length;
 
-  // Fixed columns: Checkbox (32px) + # (40px) + Status (96px) + Input (120-180px) = ~288-368px
+  // Fixed columns: Checkbox (32px) + # (40px) + Status (96px) + Input (128-176px) + Arrow (40px)
   const inputColWidth = stepCount <= 2 ? 'w-44' : stepCount <= 4 ? 'w-36' : 'w-32'; // 176px, 144px, 128px
+  const inputColWidthPx = stepCount <= 2 ? 176 : stepCount <= 4 ? 144 : 128;
   const inputColClamp = stepCount <= 2 ? 'line-clamp-3' : 'line-clamp-2';
 
-  // Step columns: distribute remaining space evenly
-  // Available space = 100vw - fixed columns (~368px) - scrollbar (~16px) = ~calc((100vw - 384px) / stepCount)
-  const getStepColWidth = () => {
-    if (stepCount === 0) return '';
-    // Min width to ensure readability, max width for aesthetics
-    const minWidth = stepCount <= 2 ? '300px' : stepCount <= 4 ? '220px' : stepCount <= 6 ? '180px' : '160px';
-    return `min-w-[${minWidth}]`;
+  // Fixed columns total width
+  const fixedColsWidth = 32 + 40 + 96 + inputColWidthPx + 40; // ~336-384px
+
+  // Step columns: min-width depends on step count to ensure readability
+  const getStepColMinWidth = () => {
+    if (stepCount === 0) return 0;
+    // When many columns, use smaller min-width but allow horizontal scroll
+    return stepCount <= 2 ? 300 : stepCount <= 4 ? 250 : 220;
   };
-  const stepColWidth = getStepColWidth();
+  const stepColMinWidth = getStepColMinWidth();
+  const stepColWidth = `min-w-[${stepColMinWidth}px]`;
   const stepColClamp = stepCount <= 2 ? 4 : stepCount <= 4 ? 3 : 3;
+
+  // Calculate total table min-width to enable horizontal scroll
+  const tableMinWidth = fixedColsWidth + (stepCount * stepColMinWidth);
 
   const selectedItem = queue.find(i => i.id === selectedItemId);
 
@@ -2520,7 +2526,7 @@ const App: React.FC = () => {
 
              {/* DATA GRID */}
              <div className="flex-1 overflow-auto custom-scrollbar relative">
-               <table className="text-left border-collapse w-full" style={{ minWidth: '100%' }}>
+               <table className="text-left border-collapse w-full" style={{ minWidth: `${tableMinWidth}px` }}>
                  <thead className="bg-slate-100 sticky top-0 z-20 shadow-sm">
                    <tr>
                      <th className="p-2 text-xs font-semibold text-slate-500 border-b border-slate-200 w-8 sticky left-0 bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
