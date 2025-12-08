@@ -58,6 +58,7 @@ export interface QueueItem {
   logs?: string[];
   startTime?: number; // Timestamp when queue item started running
   endTime?: number; // Timestamp when queue item completed or failed
+  workflowId?: string; // ID of workflow this queue item belongs to
 }
 
 export interface AppConfig {

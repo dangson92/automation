@@ -326,7 +326,7 @@ const App: React.FC = () => {
 
   const handleAddPrompts = () => {
     if (!inputText.trim()) return;
-    
+
     const lines = inputText.split('\n').filter(line => line.trim() !== '');
     const newItems: QueueItem[] = lines.map(line => ({
       id: generateId(),
@@ -334,7 +334,8 @@ const App: React.FC = () => {
       status: Status.QUEUED,
       currentStepIndex: 0,
       results: [],
-      logs: []
+      logs: [],
+      workflowId: currentWorkflowId || undefined // Save current workflow ID
     }));
 
     setQueue(prev => [...prev, ...newItems]);
@@ -1457,15 +1458,37 @@ const App: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  // Filter queue items by current workflow first for stats
+  const workflowQueue = queue.filter(item => {
+    if (currentWorkflowId) {
+      return item.workflowId === currentWorkflowId;
+    } else {
+      return !item.workflowId;
+    }
+  });
+
   const stats = {
-    total: queue.length,
-    completed: queue.filter(i => i.status === Status.COMPLETED).length,
-    failed: queue.filter(i => i.status === Status.FAILED).length,
-    queued: queue.filter(i => i.status === Status.QUEUED).length,
+    total: workflowQueue.length,
+    completed: workflowQueue.filter(i => i.status === Status.COMPLETED).length,
+    failed: workflowQueue.filter(i => i.status === Status.FAILED).length,
+    queued: workflowQueue.filter(i => i.status === Status.QUEUED).length,
   };
 
-  // Filter queue based on status and search text
+  // Filter queue based on workflow, status and search text
   const filteredQueue = queue.filter(item => {
+    // Filter by workflow - only show items belonging to current workflow
+    // If currentWorkflowId is null (no workflow loaded), show items with no workflowId
+    if (currentWorkflowId) {
+      if (item.workflowId !== currentWorkflowId) {
+        return false;
+      }
+    } else {
+      // When no workflow is selected, only show items without workflowId
+      if (item.workflowId) {
+        return false;
+      }
+    }
+
     // Filter by status
     if (filterStatus !== 'all' && item.status.toLowerCase() !== filterStatus.toLowerCase()) {
       return false;
