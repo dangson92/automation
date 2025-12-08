@@ -1459,13 +1459,9 @@ const App: React.FC = () => {
   };
 
   // Filter queue items by current workflow first for stats
-  const workflowQueue = queue.filter(item => {
-    if (currentWorkflowId) {
-      return item.workflowId === currentWorkflowId;
-    } else {
-      return !item.workflowId;
-    }
-  });
+  const workflowQueue = currentWorkflowId
+    ? queue.filter(item => item.workflowId === currentWorkflowId)
+    : queue; // Show all items when no workflow is selected
 
   const stats = {
     total: workflowQueue.length,
@@ -1476,17 +1472,10 @@ const App: React.FC = () => {
 
   // Filter queue based on workflow, status and search text
   const filteredQueue = queue.filter(item => {
-    // Filter by workflow - only show items belonging to current workflow
-    // If currentWorkflowId is null (no workflow loaded), show items with no workflowId
-    if (currentWorkflowId) {
-      if (item.workflowId !== currentWorkflowId) {
-        return false;
-      }
-    } else {
-      // When no workflow is selected, only show items without workflowId
-      if (item.workflowId) {
-        return false;
-      }
+    // Filter by workflow - only when a workflow is selected
+    // If currentWorkflowId is null (no workflow loaded), show all items
+    if (currentWorkflowId && item.workflowId !== currentWorkflowId) {
+      return false;
     }
 
     // Filter by status
