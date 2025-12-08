@@ -1479,12 +1479,29 @@ const App: React.FC = () => {
     return true;
   });
 
-  // Calculate input column width and line clamp based on number of steps
+  // Calculate column widths dynamically based on number of steps
   const stepCount = config.steps.length;
-  const inputColWidth = stepCount <= 2 ? 'w-64 max-w-[256px]' : stepCount <= 4 ? 'w-56 max-w-[224px]' : 'w-48 max-w-[192px]';
+
+  // Fixed columns: Checkbox (32px) + # (40px) + Status (96px) + Input (128-176px) + Arrow (40px)
+  const inputColWidth = stepCount <= 2 ? 'w-44' : stepCount <= 4 ? 'w-36' : 'w-32'; // 176px, 144px, 128px
+  const inputColWidthPx = stepCount <= 2 ? 176 : stepCount <= 4 ? 144 : 128;
   const inputColClamp = stepCount <= 2 ? 'line-clamp-3' : 'line-clamp-2';
-  const stepColWidth = stepCount <= 2 ? 'w-80 min-w-[320px] max-w-[500px]' : stepCount <= 4 ? 'w-72 min-w-[288px] max-w-[400px]' : 'w-64 min-w-[256px] max-w-[350px]';
+
+  // Fixed columns total width
+  const fixedColsWidth = 32 + 40 + 96 + inputColWidthPx + 40; // ~336-384px
+
+  // Step columns: min-width depends on step count to ensure readability
+  const getStepColMinWidth = () => {
+    if (stepCount === 0) return 0;
+    // When many columns, use smaller min-width but allow horizontal scroll
+    return stepCount <= 2 ? 300 : stepCount <= 4 ? 250 : 220;
+  };
+  const stepColMinWidth = getStepColMinWidth();
+  const stepColWidth = `min-w-[${stepColMinWidth}px]`;
   const stepColClamp = stepCount <= 2 ? 4 : stepCount <= 4 ? 3 : 3;
+
+  // Calculate total table min-width to enable horizontal scroll
+  const tableMinWidth = fixedColsWidth + (stepCount * stepColMinWidth);
 
   const selectedItem = queue.find(i => i.id === selectedItemId);
 
@@ -2509,10 +2526,10 @@ const App: React.FC = () => {
 
              {/* DATA GRID */}
              <div className="flex-1 overflow-auto custom-scrollbar relative">
-               <table className="text-left border-collapse w-full" style={{ minWidth: '100%' }}>
+               <table className="text-left border-collapse w-full" style={{ minWidth: `${tableMinWidth}px` }}>
                  <thead className="bg-slate-100 sticky top-0 z-20 shadow-sm">
                    <tr>
-                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-10 sticky left-0 bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                     <th className="p-2 text-xs font-semibold text-slate-500 border-b border-slate-200 w-8 sticky left-0 bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                        <input
                          type="checkbox"
                          checked={filteredQueue.length > 0 && filteredQueue.every(item => selectedItemIds.has(item.id))}
@@ -2520,24 +2537,16 @@ const App: React.FC = () => {
                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                        />
                      </th>
-                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-12 sticky left-[64px] bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">#</th>
-                     <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-[140px] min-w-[140px] sticky left-[136px] bg-slate-100 z-30 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Trạng thái</th>
-                     <th className={`p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 ${inputColWidth} sticky left-[300px] bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]`}>Input Gốc</th>
-                     {config.steps.map((step, sIdx) => {
-                        const isFirstStep = sIdx === 0;
-                        let firstStepStyle = {};
-                        if (isFirstStep && stepCount >= 3) {
-                          const paddingLeft = stepCount <= 4 ? '15rem' : '13rem';
-                          firstStepStyle = { paddingLeft };
-                        }
-                        return (
-                          <th key={step.id} style={firstStepStyle} className={`p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 ${stepColWidth}`}>
-                             <div className="flex items-center space-x-1">
-                                <span>{step.name}</span>
-                             </div>
-                          </th>
-                        );
-                     })}
+                     <th className="p-2 text-xs font-semibold text-slate-500 border-b border-slate-200 w-10 sticky left-[32px] bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">#</th>
+                     <th className="p-2 text-xs font-semibold text-slate-500 border-b border-slate-200 w-24 min-w-[96px] sticky left-[72px] bg-slate-100 z-30 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Trạng thái</th>
+                     <th className={`p-2 text-xs font-semibold text-slate-500 border-b border-slate-200 ${inputColWidth} sticky left-[168px] bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]`}>Input Gốc</th>
+                     {config.steps.map((step) => (
+                        <th key={step.id} className={`p-2 text-xs font-semibold text-slate-500 border-b border-slate-200 ${stepColWidth}`}>
+                           <div className="flex items-center space-x-1">
+                              <span>{step.name}</span>
+                           </div>
+                        </th>
+                     ))}
                      <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-10"></th>
                    </tr>
                  </thead>
@@ -2557,7 +2566,7 @@ const App: React.FC = () => {
                         key={item.id}
                         className={`group hover:bg-indigo-50/50 transition-colors ${isSelected ? 'bg-indigo-50' : ''}`}
                       >
-                        <td className={`p-3 sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isSelected ? 'bg-indigo-50' : 'bg-white group-hover:bg-indigo-50/50'}`} onClick={(e) => e.stopPropagation()}>
+                        <td className={`p-2 sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isSelected ? 'bg-indigo-50' : 'bg-white group-hover:bg-indigo-50/50'}`} onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={selectedItemIds.has(item.id)}
@@ -2565,8 +2574,8 @@ const App: React.FC = () => {
                             className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                           />
                         </td>
-                        <td className={`p-3 text-xs font-mono text-slate-400 sticky left-[64px] z-10 cursor-pointer shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isSelected ? 'bg-indigo-50' : 'bg-white group-hover:bg-indigo-50/50'}`} onClick={() => setSelectedItemId(item.id)}>{idx + 1}</td>
-                        <td className={`p-3 sticky left-[136px] z-10 whitespace-nowrap cursor-pointer shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isSelected ? 'bg-indigo-50' : 'bg-white group-hover:bg-indigo-50/50'}`} onClick={() => setSelectedItemId(item.id)}>
+                        <td className={`p-2 text-xs font-mono text-slate-400 sticky left-[32px] z-10 cursor-pointer shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isSelected ? 'bg-indigo-50' : 'bg-white group-hover:bg-indigo-50/50'}`} onClick={() => setSelectedItemId(item.id)}>{idx + 1}</td>
+                        <td className={`p-2 sticky left-[72px] z-10 whitespace-nowrap cursor-pointer shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isSelected ? 'bg-indigo-50' : 'bg-white group-hover:bg-indigo-50/50'}`} onClick={() => setSelectedItemId(item.id)}>
                            <div className="flex flex-col gap-1">
                              <StatusBadge status={item.status} />
                              {item.startTime && item.endTime && (
@@ -2576,27 +2585,18 @@ const App: React.FC = () => {
                              )}
                            </div>
                         </td>
-                        <td className={`p-3 text-sm text-slate-800 font-medium ${inputColWidth} align-top cursor-pointer sticky left-[300px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isSelected ? 'bg-indigo-50' : 'bg-white group-hover:bg-indigo-50/50'}`} onClick={() => setSelectedItemId(item.id)}>
+                        <td className={`p-2 text-sm text-slate-800 font-medium ${inputColWidth} align-top cursor-pointer sticky left-[168px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isSelected ? 'bg-indigo-50' : 'bg-white group-hover:bg-indigo-50/50'}`} onClick={() => setSelectedItemId(item.id)}>
                            <div className={`break-words whitespace-normal ${inputColClamp}`}>{item.originalPrompt}</div>
                         </td>
 
                         {config.steps.map((step, sIdx) => {
                            const result = item.results.find(r => r.stepId === step.id);
                            const isCurrent = item.currentStepIndex === sIdx && item.status === Status.RUNNING;
-                           // Add left spacing to first column to prevent overlap with sticky "Input Gốc" column
-                           const isFirstStep = sIdx === 0;
-                           let firstStepStyle = {};
-                           if (isFirstStep && stepCount >= 3) {
-                             // Add padding-left to push content away from sticky column overlay
-                             const paddingLeft = stepCount <= 4 ? '15rem' : '13rem'; // 240px, 208px
-                             firstStepStyle = { paddingLeft };
-                           }
 
                            return (
                               <td
                                  key={step.id}
-                                 style={firstStepStyle}
-                                 className={`p-3 text-sm text-slate-600 align-top border-l border-slate-50 ${stepColWidth} cursor-pointer hover:bg-indigo-50/80 transition-colors`}
+                                 className={`p-2 text-sm text-slate-600 align-top border-l border-slate-50 ${stepColWidth} cursor-pointer hover:bg-indigo-50/80 transition-colors`}
                                  onClick={() => {
                                    setSelectedItemId(item.id);
                                    if (result) {
