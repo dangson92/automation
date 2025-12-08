@@ -777,6 +777,46 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
             // Remove Perplexity-specific citation elements
             clone.querySelectorAll('.citation, .citation-nbsp, span.citation, span[class*="citation"], a[rel*="nofollow noopener"], span[class*="rounded-badge"]').forEach(el => el.remove());
 
+            // Remove Claude wrapper divs with specific classes
+            // These are layout wrappers, not content
+            const claudeWrapperClasses = [
+              'progressive-markdown',
+              'standard-markdown',
+              'break-words',
+              'line-clamp-1',
+              'line-clamp-2',
+              'line-clamp-3',
+              'line-clamp-4',
+              'grid-cols-1',
+              'font-claude-response-body'
+            ];
+
+            // Build selector for Claude wrappers
+            const claudeWrapperSelectors = claudeWrapperClasses.map(cls => `[class*="${cls}"]`).join(', ');
+
+            // Unwrap Claude wrapper elements (keep content, remove wrapper)
+            const unwrapElement = (el) => {
+              const parent = el.parentNode;
+              if (!parent) return;
+
+              // Move all children to parent before the wrapper element
+              while (el.firstChild) {
+                parent.insertBefore(el.firstChild, el);
+              }
+              // Remove the wrapper element
+              parent.removeChild(el);
+            };
+
+            // Repeatedly unwrap until no more wrappers found
+            let wrappers = clone.querySelectorAll(claudeWrapperSelectors);
+            while (wrappers.length > 0) {
+              // Convert to array and unwrap from innermost to outermost
+              Array.from(wrappers).reverse().forEach(wrapper => {
+                unwrapElement(wrapper);
+              });
+              wrappers = clone.querySelectorAll(claudeWrapperSelectors);
+            }
+
             // Clean all attributes from remaining HTML tags to get clean content
             const cleanAttributes = (element) => {
               // Keep only basic HTML structure tags
