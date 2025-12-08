@@ -121,7 +121,7 @@ const App: React.FC = () => {
   // Selected items for batch delete
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [editingOutput, setEditingOutput] = useState<{ itemId: string; stepId: string; content: string } | null>(null);
-  const [rerunStepId, setRerunStepId] = useState<string | null>(null);
+  const [rerunningStep, setRerunningStep] = useState<{ itemId: string; stepId: string } | null>(null);
   const [imageGallery, setImageGallery] = useState<{ itemId: string; stepId: string; imageIndex: number; images: string[]; currentSelected: number } | null>(null);
   const [scrollToStepId, setScrollToStepId] = useState<string | null>(null);
   const [isDetailPanelClosing, setIsDetailPanelClosing] = useState(false);
@@ -581,7 +581,7 @@ const App: React.FC = () => {
     }
 
     try {
-      setRerunStepId(step.id);
+      setRerunningStep({ itemId, stepId: step.id });
       const res = await window.electronAPI.runAutomation({
         url: stepUrl,
         selectors: step.selectors || {},
@@ -589,7 +589,7 @@ const App: React.FC = () => {
         prompt: promptToSend,
         headless
       });
-      setRerunStepId(null);
+      setRerunningStep(null);
       if (res.error) {
         alert('Lỗi chạy lại: ' + res.error);
         return;
@@ -618,7 +618,7 @@ const App: React.FC = () => {
         return { ...q, results: newResults, finalResponse };
       }));
     } catch (e: any) {
-      setRerunStepId(null);
+      setRerunningStep(null);
       alert('Lỗi chạy lại: ' + e.message);
     }
   };
@@ -2604,12 +2604,14 @@ const App: React.FC = () => {
                         {config.steps.map((step, sIdx) => {
                            const result = item.results.find(r => r.stepId === step.id);
                            const isCurrent = item.currentStepIndex === sIdx && item.status === Status.RUNNING;
+                           const isRerunning = rerunningStep?.itemId === item.id && rerunningStep?.stepId === step.id;
 
                            return (
                               <td
                                  key={step.id}
-                                 className={`p-2 text-sm text-slate-600 align-top border-l border-slate-50 ${stepColWidth} cursor-pointer hover:bg-indigo-50/80 transition-colors`}
+                                 className={`p-2 text-sm text-slate-600 align-top border-l border-slate-50 ${stepColWidth} cursor-pointer hover:bg-indigo-50/80 transition-colors relative`}
                                  onClick={() => {
+                                   if (isRerunning) return; // Disable click when rerunning
                                    setSelectedItemId(item.id);
                                    if (result) {
                                      setScrollToStepId(step.id);
@@ -2618,7 +2620,7 @@ const App: React.FC = () => {
                               >
                                  {result ? (
                                     <div
-                                      className={`break-words line-clamp-${stepColClamp}`}
+                                      className={`break-words line-clamp-${stepColClamp} ${isRerunning ? 'opacity-30' : ''}`}
                                       style={{
                                         display: '-webkit-box',
                                         WebkitLineClamp: stepColClamp,
@@ -2636,6 +2638,13 @@ const App: React.FC = () => {
                                     </div>
                                  ) : (
                                     <span className="text-slate-200 text-xs">-</span>
+                                 )}
+
+                                 {/* Loading overlay when rerunning this step */}
+                                 {isRerunning && (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+                                       <Cpu className="w-6 h-6 text-indigo-600 animate-spin" />
+                                    </div>
                                  )}
                               </td>
                            );
@@ -2792,9 +2801,9 @@ const App: React.FC = () => {
                                 <button
                                   className="px-2 py-1 text-xs rounded bg-amber-600 text-white disabled:opacity-50"
                                   onClick={() => handleRerunStep(selectedItem.id, idx)}
-                                  disabled={rerunStepId === result.stepId}
+                                  disabled={rerunningStep?.itemId === selectedItem.id && rerunningStep?.stepId === result.stepId}
                                 >
-                                  {rerunStepId === result.stepId ? 'Đang chạy lại...' : 'Chạy lại'}
+                                  {rerunningStep?.itemId === selectedItem.id && rerunningStep?.stepId === result.stepId ? 'Đang chạy lại...' : 'Chạy lại'}
                                 </button>
                               </div>
                             </div>
