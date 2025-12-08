@@ -2525,12 +2525,13 @@ const App: React.FC = () => {
                      <th className={`p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 ${inputColWidth} sticky left-[300px] bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]`}>Input Gốc</th>
                      {config.steps.map((step, sIdx) => {
                         const isFirstStep = sIdx === 0;
-                        let firstStepPadding = '';
+                        let firstStepStyle = {};
                         if (isFirstStep && stepCount >= 3) {
-                          firstStepPadding = stepCount <= 4 ? 'pl-60' : 'pl-52';
+                          const paddingLeft = stepCount <= 4 ? '15rem' : '13rem';
+                          firstStepStyle = { paddingLeft };
                         }
                         return (
-                          <th key={step.id} className={`p-3 ${firstStepPadding} text-xs font-semibold text-slate-500 border-b border-slate-200 ${stepColWidth}`}>
+                          <th key={step.id} style={firstStepStyle} className={`p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 ${stepColWidth}`}>
                              <div className="flex items-center space-x-1">
                                 <span>{step.name}</span>
                              </div>
@@ -2582,18 +2583,20 @@ const App: React.FC = () => {
                         {config.steps.map((step, sIdx) => {
                            const result = item.results.find(r => r.stepId === step.id);
                            const isCurrent = item.currentStepIndex === sIdx && item.status === Status.RUNNING;
-                           // Add left padding to first column to prevent overlap with sticky "Input Gốc" column
+                           // Add left spacing to first column to prevent overlap with sticky "Input Gốc" column
                            const isFirstStep = sIdx === 0;
-                           let firstStepPadding = '';
+                           let firstStepStyle = {};
                            if (isFirstStep && stepCount >= 3) {
-                             // Add enough padding to prevent content from being hidden by sticky column
-                             firstStepPadding = stepCount <= 4 ? 'pl-60' : 'pl-52'; // w-56=224px, w-48=192px
+                             // Add padding-left to push content away from sticky column overlay
+                             const paddingLeft = stepCount <= 4 ? '15rem' : '13rem'; // 240px, 208px
+                             firstStepStyle = { paddingLeft };
                            }
 
                            return (
                               <td
                                  key={step.id}
-                                 className={`p-3 ${firstStepPadding} text-sm text-slate-600 align-top border-l border-slate-50 ${stepColWidth} cursor-pointer hover:bg-indigo-50/80 transition-colors`}
+                                 style={firstStepStyle}
+                                 className={`p-3 text-sm text-slate-600 align-top border-l border-slate-50 ${stepColWidth} cursor-pointer hover:bg-indigo-50/80 transition-colors`}
                                  onClick={() => {
                                    setSelectedItemId(item.id);
                                    if (result) {
