@@ -2366,7 +2366,7 @@ const App: React.FC = () => {
                           <span>Dừng lại</span>
                        </button>
                     ) : (
-                       <button onClick={processQueue} disabled={queue.length === 0} className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-2.5 rounded-lg font-bold hover:shadow-lg hover:from-blue-700 hover:to-indigo-700 transition-all disabled:opacity-50 disabled:shadow-none">
+                       <button onClick={() => processQueue()} disabled={queue.length === 0} className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-2.5 rounded-lg font-bold hover:shadow-lg hover:from-blue-700 hover:to-indigo-700 transition-all disabled:opacity-50 disabled:shadow-none">
                           <Play className="w-5 h-5 fill-current" />
                           <span>Chạy ngay</span>
                        </button>
