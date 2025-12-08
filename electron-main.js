@@ -768,7 +768,7 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
               }
             }
 
-            // Otherwise extract HTML, removing UI elements
+            // Extract clean HTML for all platforms (ChatGPT, Perplexity, Claude, etc.)
             const clone = root.cloneNode(true);
 
             // Remove wrapper divs, buttons, and other UI elements
@@ -778,7 +778,6 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
             clone.querySelectorAll('.citation, .citation-nbsp, span.citation, span[class*="citation"], a[rel*="nofollow noopener"], span[class*="rounded-badge"]').forEach(el => el.remove());
 
             // Remove Claude wrapper divs with specific classes
-            // These are layout wrappers, not content
             const claudeWrapperClasses = [
               'progressive-markdown',
               'standard-markdown',
