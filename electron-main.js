@@ -792,7 +792,7 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
             ];
 
             // Build selector for Claude wrappers
-            const claudeWrapperSelectors = claudeWrapperClasses.map(cls => `[class*="${cls}"]`).join(', ');
+            const claudeWrapperSelectors = claudeWrapperClasses.map(cls => '[class*="' + cls + '"]').join(', ');
 
             // Unwrap Claude wrapper elements (keep content, remove wrapper)
             const unwrapElement = (el) => {
