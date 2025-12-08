@@ -770,8 +770,48 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
 
             // Otherwise extract HTML, removing UI elements
             const clone = root.cloneNode(true);
+
             // Remove wrapper divs, buttons, and other UI elements
             clone.querySelectorAll('[aria-label="Copy"], button, svg, div.sticky, pre, .rounded-2xl, [class*="corner-"]').forEach(el => el.remove());
+
+            // Remove Perplexity-specific citation elements
+            clone.querySelectorAll('.citation, .citation-nbsp, span.citation, span[class*="citation"], a[rel*="nofollow noopener"], span[class*="rounded-badge"]').forEach(el => el.remove());
+
+            // Clean all attributes from remaining HTML tags to get clean content
+            const cleanAttributes = (element) => {
+              // Keep only basic HTML structure tags
+              const allowedTags = ['p', 'ul', 'ol', 'li', 'strong', 'em', 'b', 'i', 'br', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'a'];
+
+              // Process all child elements recursively
+              Array.from(element.children).forEach(child => {
+                const tagName = child.tagName.toLowerCase();
+
+                // If not an allowed tag, unwrap it (keep content but remove tag)
+                if (!allowedTags.includes(tagName)) {
+                  // Move children to parent before removing
+                  while (child.firstChild) {
+                    element.insertBefore(child.firstChild, child);
+                  }
+                  element.removeChild(child);
+                } else {
+                  // Remove all attributes except href for links
+                  const attrs = Array.from(child.attributes);
+                  attrs.forEach(attr => {
+                    if (tagName === 'a' && attr.name === 'href') {
+                      // Keep href for links
+                      return;
+                    }
+                    child.removeAttribute(attr.name);
+                  });
+
+                  // Recursively clean children
+                  cleanAttributes(child);
+                }
+              });
+            };
+
+            cleanAttributes(clone);
+
             const html = clone.innerHTML || '';
             if (html && html.trim().length > 0) return html;
 
