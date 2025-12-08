@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Play, Pause, Plus, Trash2, Download, Save, UserCog, ChevronDown, Bot, Layout, Zap, X, Globe, HelpCircle, ArrowRight, Link as LinkIcon, Target, CheckCircle2, Cpu, FileText, Box, Layers, AlertTriangle, Monitor, Eye, EyeOff, Settings, Image as ImageIcon, RotateCcw } from 'lucide-react';
+import { Play, Pause, Plus, Trash2, Download, Save, UserCog, ChevronDown, Bot, Layout, Zap, X, Globe, HelpCircle, ArrowRight, Link as LinkIcon, Target, CheckCircle2, Cpu, FileText, Box, Layers, AlertTriangle, Monitor, Eye, EyeOff, Settings, Image as ImageIcon, RotateCcw, Search, Filter } from 'lucide-react';
 import { Status, QueueItem, AppConfig, SavedAgent, AutomationConfig, WorkflowStep, StepResult } from './types';
 import { OutputEditor } from './components/OutputEditor';
 import { generateContent } from './services/geminiService';
@@ -125,6 +125,10 @@ const App: React.FC = () => {
   const [imageGallery, setImageGallery] = useState<{ itemId: string; stepId: string; imageIndex: number; images: string[]; currentSelected: number } | null>(null);
   const [scrollToStepId, setScrollToStepId] = useState<string | null>(null);
   const [isDetailPanelClosing, setIsDetailPanelClosing] = useState(false);
+
+  // Queue filter and search
+  const [filterStatus, setFilterStatus] = useState<string>('all'); // 'all', 'queued', 'running', 'completed', 'failed'
+  const [searchText, setSearchText] = useState<string>('');
 
   // --- Init ---
   useEffect(() => {
@@ -436,6 +440,23 @@ const App: React.FC = () => {
     setSelectedItemIds(new Set());
   };
 
+  const handleRunSelected = () => {
+    if (selectedItemIds.size === 0) return;
+
+    // Check if any selected items are already completed
+    const completedItems = queue.filter(item =>
+      selectedItemIds.has(item.id) && item.status === Status.COMPLETED
+    );
+
+    if (completedItems.length > 0) {
+      alert(`Bạn cần reset các queue sau về trạng thái chờ mới chạy lại được:\n\n${completedItems.map(item => `- ${item.originalPrompt.substring(0, 50)}...`).join('\n')}`);
+      return;
+    }
+
+    // Run only selected items
+    processQueue(selectedItemIds);
+  };
+
   const handleToggleSelect = (id: string) => {
     setSelectedItemIds(prev => {
       const newSet = new Set(prev);
@@ -449,10 +470,24 @@ const App: React.FC = () => {
   };
 
   const handleToggleSelectAll = () => {
-    if (selectedItemIds.size === queue.length) {
-      setSelectedItemIds(new Set());
+    // Use filteredQueue to select only visible items
+    const visibleIds = filteredQueue.map(item => item.id);
+    const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedItemIds.has(id));
+
+    if (allVisibleSelected) {
+      // Deselect all visible items
+      setSelectedItemIds(prev => {
+        const newSet = new Set(prev);
+        visibleIds.forEach(id => newSet.delete(id));
+        return newSet;
+      });
     } else {
-      setSelectedItemIds(new Set(queue.map(item => item.id)));
+      // Select all visible items
+      setSelectedItemIds(prev => {
+        const newSet = new Set(prev);
+        visibleIds.forEach(id => newSet.add(id));
+        return newSet;
+      });
     }
   };
 
@@ -1135,15 +1170,22 @@ const App: React.FC = () => {
   };
 
   // --- PROCESSING LOGIC ---
-  const processQueue = useCallback(async () => {
+  const processQueue = useCallback(async (selectedIds?: Set<string>) => {
     if (processingRef.current) return;
-    
+
     setIsProcessing(true);
     processingRef.current = true;
     stopRef.current = false;
 
     const idsToProcess = queue
-      .filter(item => item.status !== Status.COMPLETED)
+      .filter(item => {
+        // If selectedIds is provided, only process items in the selection
+        if (selectedIds) {
+          return selectedIds.has(item.id) && item.status !== Status.COMPLETED;
+        }
+        // Otherwise, process all non-completed items
+        return item.status !== Status.COMPLETED;
+      })
       .map(item => item.id);
 
     const totalSteps = idsToProcess.length * config.steps.length;
@@ -1385,12 +1427,57 @@ const App: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  const handleExportSelected = () => {
+    if (selectedItemIds.size === 0) return;
+
+    const selectedItems = queue.filter(item => selectedItemIds.has(item.id));
+    const stepHeaders = config.steps.map(s => s.name);
+    const headers = ["ID", "Original Input", ...stepHeaders, "Status"];
+    const csvContent = [
+      headers.join(","),
+      ...selectedItems.map(item => {
+        const stepOutputs = config.steps.map((s, idx) => {
+          const res = item.results[idx]?.response || "";
+          return `"${res.replace(/"/g, '""')}"`;
+        });
+        const row = [item.id, `"${item.originalPrompt.replace(/"/g, '""')}"`, ...stepOutputs, item.status];
+        return row.join(",");
+      })
+    ].join("\n");
+
+    // Add UTF-8 BOM for Vietnamese text support in Excel
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `workflow_export_selected_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const stats = {
     total: queue.length,
     completed: queue.filter(i => i.status === Status.COMPLETED).length,
     failed: queue.filter(i => i.status === Status.FAILED).length,
     queued: queue.filter(i => i.status === Status.QUEUED).length,
   };
+
+  // Filter queue based on status and search text
+  const filteredQueue = queue.filter(item => {
+    // Filter by status
+    if (filterStatus !== 'all' && item.status.toLowerCase() !== filterStatus.toLowerCase()) {
+      return false;
+    }
+
+    // Filter by search text (search in originalPrompt)
+    if (searchText.trim() !== '' && !item.originalPrompt.toLowerCase().includes(searchText.toLowerCase())) {
+      return false;
+    }
+
+    return true;
+  });
 
   const selectedItem = queue.find(i => i.id === selectedItemId);
 
@@ -2347,6 +2434,14 @@ const App: React.FC = () => {
                         Đã chọn: <span className="font-bold text-indigo-600">{selectedItemIds.size}</span>
                       </span>
                    )}
+                   <button onClick={handleRunSelected} disabled={selectedItemIds.size === 0} className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-green-300 rounded-md text-sm text-green-600 hover:bg-green-50 hover:text-green-700 transition-colors disabled:opacity-50">
+                      <Play className="w-4 h-4" />
+                      <span>Chạy đã chọn</span>
+                   </button>
+                   <button onClick={handleExportSelected} disabled={selectedItemIds.size === 0} className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-indigo-300 rounded-md text-sm text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 transition-colors disabled:opacity-50">
+                      <Download className="w-4 h-4" />
+                      <span>Export đã chọn</span>
+                   </button>
                    <button onClick={handleExportCSV} disabled={queue.length === 0} className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-slate-300 rounded-md text-sm text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors disabled:opacity-50">
                       <Download className="w-4 h-4" />
                       <span>Excel</span>
@@ -2357,12 +2452,51 @@ const App: React.FC = () => {
                    </button>
                    <button onClick={handleDeleteSelected} disabled={selectedItemIds.size === 0} className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-orange-300 rounded-md text-sm text-orange-600 hover:bg-orange-50 hover:text-orange-700 transition-colors disabled:opacity-50">
                       <Trash2 className="w-4 h-4" />
-                      <span>Xóa đã chọn</span>
+                      <span>Xóa</span>
                    </button>
-                   <button onClick={handleClearQueue} disabled={queue.length === 0} className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-slate-300 rounded-md text-sm text-slate-600 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-50">
-                      <Trash2 className="w-4 h-4" />
-                      <span>Xóa tất cả</span>
-                   </button>
+                </div>
+             </div>
+
+             {/* Filter and Search Bar */}
+             <div className="px-4 py-3 border-b border-slate-200 bg-white">
+                <div className="flex items-center space-x-3">
+                   <div className="flex items-center space-x-2">
+                      <Filter className="w-4 h-4 text-slate-400" />
+                      <select
+                         value={filterStatus}
+                         onChange={(e) => setFilterStatus(e.target.value)}
+                         className="px-3 py-1.5 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      >
+                         <option value="all">Tất cả trạng thái</option>
+                         <option value="queued">Chờ</option>
+                         <option value="running">Đang chạy</option>
+                         <option value="completed">Hoàn thành</option>
+                         <option value="failed">Thất bại</option>
+                      </select>
+                   </div>
+                   <div className="flex-1 flex items-center space-x-2">
+                      <Search className="w-4 h-4 text-slate-400" />
+                      <input
+                         type="text"
+                         placeholder="Tìm kiếm theo input gốc..."
+                         value={searchText}
+                         onChange={(e) => setSearchText(e.target.value)}
+                         className="flex-1 px-3 py-1.5 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      />
+                      {searchText && (
+                         <button
+                            onClick={() => setSearchText('')}
+                            className="text-slate-400 hover:text-slate-600"
+                         >
+                            <X className="w-4 h-4" />
+                         </button>
+                      )}
+                   </div>
+                   {(filterStatus !== 'all' || searchText) && (
+                      <span className="text-xs text-slate-500">
+                         Hiển thị: <span className="font-bold text-indigo-600">{filteredQueue.length}</span> / {queue.length}
+                      </span>
+                   )}
                 </div>
              </div>
 
@@ -2374,7 +2508,7 @@ const App: React.FC = () => {
                      <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-10 sticky left-0 bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
                        <input
                          type="checkbox"
-                         checked={queue.length > 0 && selectedItemIds.size === queue.length}
+                         checked={filteredQueue.length > 0 && filteredQueue.every(item => selectedItemIds.has(item.id))}
                          onChange={handleToggleSelectAll}
                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                        />
@@ -2393,15 +2527,15 @@ const App: React.FC = () => {
                    </tr>
                  </thead>
                  <tbody className="bg-white divide-y divide-slate-100">
-                    {queue.length === 0 && (
+                    {filteredQueue.length === 0 && (
                       <tr>
                         <td colSpan={5 + config.steps.length} className="p-10 text-center text-slate-400">
                            <Layout className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                           <p>Danh sách trống.</p>
+                           <p>{queue.length === 0 ? 'Danh sách trống.' : 'Không tìm thấy kết quả phù hợp.'}</p>
                         </td>
                       </tr>
                     )}
-                    {queue.map((item, idx) => {
+                    {filteredQueue.map((item, idx) => {
                       const isSelected = selectedItemId === item.id;
                       return (
                       <tr
