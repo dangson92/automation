@@ -2366,9 +2366,13 @@ const App: React.FC = () => {
                           <span>Dừng lại</span>
                        </button>
                     ) : (
-                       <button onClick={() => processQueue()} disabled={queue.length === 0} className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-2.5 rounded-lg font-bold hover:shadow-lg hover:from-blue-700 hover:to-indigo-700 transition-all disabled:opacity-50 disabled:shadow-none">
+                       <button
+                          onClick={selectedItemIds.size > 0 ? handleRunSelected : () => processQueue()}
+                          disabled={queue.length === 0}
+                          className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-2.5 rounded-lg font-bold hover:shadow-lg hover:from-blue-700 hover:to-indigo-700 transition-all disabled:opacity-50 disabled:shadow-none"
+                       >
                           <Play className="w-5 h-5 fill-current" />
-                          <span>Chạy ngay</span>
+                          <span>{selectedItemIds.size > 0 ? 'Chạy đã chọn' : 'Chạy ngay'}</span>
                        </button>
                     )}
                  </div>
@@ -2434,17 +2438,13 @@ const App: React.FC = () => {
                         Đã chọn: <span className="font-bold text-indigo-600">{selectedItemIds.size}</span>
                       </span>
                    )}
-                   <button onClick={handleRunSelected} disabled={selectedItemIds.size === 0} className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-green-300 rounded-md text-sm text-green-600 hover:bg-green-50 hover:text-green-700 transition-colors disabled:opacity-50">
-                      <Play className="w-4 h-4" />
-                      <span>Chạy đã chọn</span>
-                   </button>
-                   <button onClick={handleExportSelected} disabled={selectedItemIds.size === 0} className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-indigo-300 rounded-md text-sm text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 transition-colors disabled:opacity-50">
+                   <button
+                      onClick={selectedItemIds.size > 0 ? handleExportSelected : handleExportCSV}
+                      disabled={queue.length === 0}
+                      className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-slate-300 rounded-md text-sm text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors disabled:opacity-50"
+                   >
                       <Download className="w-4 h-4" />
-                      <span>Export đã chọn</span>
-                   </button>
-                   <button onClick={handleExportCSV} disabled={queue.length === 0} className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-slate-300 rounded-md text-sm text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors disabled:opacity-50">
-                      <Download className="w-4 h-4" />
-                      <span>Excel</span>
+                      <span>{selectedItemIds.size > 0 ? 'Export đã chọn' : 'Excel'}</span>
                    </button>
                    <button onClick={handleResetSelected} disabled={selectedItemIds.size === 0} className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-blue-300 rounded-md text-sm text-blue-600 hover:bg-blue-50 hover:text-blue-700 transition-colors disabled:opacity-50">
                       <RotateCcw className="w-4 h-4" />
