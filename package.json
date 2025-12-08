@@ -22,10 +22,12 @@
       "keys/public.pem",
       "package.json",
       "!license-active/**/*",
-      "!node_modules/**/*",
       "!src/**/*",
       "!*.md",
       "!.git/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/jsonwebtoken/**/*"
     ],
     "win": {
       "target": [
