@@ -2523,13 +2523,21 @@ const App: React.FC = () => {
                      <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-12 sticky left-[64px] bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">#</th>
                      <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-[140px] min-w-[140px] sticky left-[136px] bg-slate-100 z-30 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Trạng thái</th>
                      <th className={`p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 ${inputColWidth} sticky left-[300px] bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]`}>Input Gốc</th>
-                     {config.steps.map(step => (
-                        <th key={step.id} className={`p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 ${stepColWidth}`}>
-                           <div className="flex items-center space-x-1">
-                              <span>{step.name}</span>
-                           </div>
-                        </th>
-                     ))}
+                     {config.steps.map((step, sIdx) => {
+                        const isFirstStep = sIdx === 0;
+                        let firstStepStyle = {};
+                        if (isFirstStep && stepCount >= 3) {
+                          const paddingLeft = stepCount <= 4 ? '15rem' : '13rem';
+                          firstStepStyle = { paddingLeft };
+                        }
+                        return (
+                          <th key={step.id} style={firstStepStyle} className={`p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 ${stepColWidth}`}>
+                             <div className="flex items-center space-x-1">
+                                <span>{step.name}</span>
+                             </div>
+                          </th>
+                        );
+                     })}
                      <th className="p-3 text-xs font-semibold text-slate-500 border-b border-slate-200 w-10"></th>
                    </tr>
                  </thead>
@@ -2575,10 +2583,19 @@ const App: React.FC = () => {
                         {config.steps.map((step, sIdx) => {
                            const result = item.results.find(r => r.stepId === step.id);
                            const isCurrent = item.currentStepIndex === sIdx && item.status === Status.RUNNING;
+                           // Add left spacing to first column to prevent overlap with sticky "Input Gốc" column
+                           const isFirstStep = sIdx === 0;
+                           let firstStepStyle = {};
+                           if (isFirstStep && stepCount >= 3) {
+                             // Add padding-left to push content away from sticky column overlay
+                             const paddingLeft = stepCount <= 4 ? '15rem' : '13rem'; // 240px, 208px
+                             firstStepStyle = { paddingLeft };
+                           }
 
                            return (
                               <td
                                  key={step.id}
+                                 style={firstStepStyle}
                                  className={`p-3 text-sm text-slate-600 align-top border-l border-slate-50 ${stepColWidth} cursor-pointer hover:bg-indigo-50/80 transition-colors`}
                                  onClick={() => {
                                    setSelectedItemId(item.id);
