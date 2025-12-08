@@ -790,8 +790,8 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
               'font-claude-response-body'
             ];
 
-            // Build selector for Claude wrappers
-            const claudeWrapperSelectors = claudeWrapperClasses.map(cls => '[class*="' + cls + '"]').join(', ');
+            // Build selector for Claude wrappers - only target DIV elements
+            const claudeWrapperSelectors = claudeWrapperClasses.map(cls => 'div[class*="' + cls + '"]').join(', ');
 
             // Unwrap Claude wrapper elements (keep content, remove wrapper)
             const unwrapElement = (el) => {
@@ -851,7 +851,16 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
 
             cleanAttributes(clone);
 
-            const html = clone.innerHTML || '';
+            let html = clone.innerHTML || '';
+
+            // If HTML contains encoded entities like &lt; &gt;, it means content is stored as text
+            // Decode HTML entities to get actual HTML
+            if (html.includes('&lt;') || html.includes('&gt;')) {
+              const tempDiv = document.createElement('div');
+              tempDiv.innerHTML = html;
+              html = tempDiv.textContent || tempDiv.innerText || '';
+            }
+
             if (html && html.trim().length > 0) return html;
 
             // Fallback to text
