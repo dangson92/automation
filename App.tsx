@@ -2465,7 +2465,7 @@ const App: React.FC = () => {
                       <select
                          value={filterStatus}
                          onChange={(e) => setFilterStatus(e.target.value)}
-                         className="px-3 py-1.5 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                         className="px-3 py-1.5 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent cursor-pointer"
                       >
                          <option value="all">Tất cả trạng thái</option>
                          <option value="queued">Chờ</option>
