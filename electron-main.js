@@ -741,6 +741,13 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
           console.log('Capturing output...');
           const urlLower = (window.location.href || '').toLowerCase();
 
+          // Scroll to bottom to ensure all content is loaded (lazy rendering)
+          console.log('Scrolling to load all content...');
+          window.scrollTo(0, document.body.scrollHeight);
+          await sleep(1000);
+          window.scrollTo(0, document.body.scrollHeight);
+          await sleep(500);
+
           // For ChatGPT: specifically target the markdown content of the last assistant message
           let targetEl;
           if (urlLower.includes('chatgpt.com') || urlLower.includes('chat.openai.com')) {
@@ -752,16 +759,20 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
             }
 
             const lastAssistantMsg = assistantMessages[assistantMessages.length - 1];
-            // Find the markdown content inside it
-            const markdownEl = lastAssistantMsg.querySelector('.markdown');
+
+            // Try to find markdown content - use the entire message container if markdown not found
+            let markdownEl = lastAssistantMsg.querySelector('.markdown');
 
             if (!markdownEl) {
-              console.error('No markdown element found in assistant message');
-              return { error: 'Không tìm thấy nội dung markdown trong tin nhắn' };
+              console.log('No .markdown element found, using entire message container');
+              // Try alternative selectors for content
+              markdownEl = lastAssistantMsg.querySelector('[class*="markdown"]') ||
+                           lastAssistantMsg.querySelector('[data-message-id]') ||
+                           lastAssistantMsg;
             }
 
             targetEl = markdownEl;
-            console.log('Using ChatGPT markdown element');
+            console.log('Using ChatGPT element, innerHTML length:', targetEl.innerHTML.length);
           } else {
             // For other platforms, use the original logic
             const outEls = document.querySelectorAll(outputSel);
