@@ -30,13 +30,17 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
   const extractAllInputVariables = () => {
     const allVariables = new Set<string>();
 
+    // Extract variables used in templates
     steps.forEach(step => {
       const vars = extractInputVariables(step.template);
       vars.forEach(v => allVariables.add(v));
     });
 
-    // Always include "input" as the primary variable
-    allVariables.add('input');
+    // Always include basic input variables for mapping flexibility
+    // Even if they're not used in templates yet
+    ['input', 'input1', 'input2', 'input3', 'input4', 'input5'].forEach(v => {
+      allVariables.add(v);
+    });
 
     return Array.from(allVariables).sort((a, b) => {
       if (a === 'input') return -1;
@@ -396,9 +400,14 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
             ))}
           </div>
 
-          <p className="text-xs text-slate-500 italic">
-            * <code className="font-mono text-blue-600">{'{{input}}'}</code> là bắt buộc và sẽ hiển thị ở cột input trong queue
-          </p>
+          <div className="text-xs text-slate-500 space-y-1">
+            <p className="italic">
+              * <code className="font-mono text-blue-600">{'{{input}}'}</code> là bắt buộc và sẽ hiển thị ở cột input trong queue
+            </p>
+            <p className="italic">
+              💡 Các biến <code className="font-mono text-blue-600">{'{{input1}}'}</code>, <code className="font-mono text-blue-600">{'{{input2}}'}</code>, v.v. có thể dùng trong template của bất kỳ step nào
+            </p>
+          </div>
 
           {/* Preview */}
           {mapping.input && (
