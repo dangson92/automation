@@ -1073,8 +1073,8 @@ const App: React.FC = () => {
 
                                   // Otherwise extract HTML, removing UI elements
                                   const clone = root.cloneNode(true) as HTMLElement;
-                                  // Remove wrapper divs, buttons, and other UI elements
-                                  clone.querySelectorAll('[aria-label="Copy"], button, svg, div.sticky, pre, .rounded-2xl, [class*="corner-"]').forEach(el => el.remove());
+                                  // Remove wrapper divs, buttons, and other UI elements (keep pre for code blocks)
+                                  clone.querySelectorAll('[aria-label="Copy"], button, svg, div.sticky, .rounded-2xl, [class*="corner-"]').forEach(el => el.remove());
 
                                   // Clean all HTML attributes except href for links
                                   const allElements = clone.querySelectorAll('*');
