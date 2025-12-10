@@ -1144,6 +1144,12 @@ const App: React.FC = () => {
 
   // Search images from Perplexity based on context
   const searchImagesForContext = async (context: string, itemId: string, conversationUrl?: string): Promise<{ images: string[]; conversationUrl?: string }> => {
+    // Check if user stopped the queue
+    if (stopRef.current) {
+      appendLog(itemId, '[IMAGE] Bỏ qua tìm ảnh do người dùng dừng queue');
+      return { images: [] };
+    }
+
     if (mode !== 'ELECTRON' || !window.electronAPI) {
       appendLog(itemId, '[IMAGE] Chỉ hỗ trợ tìm ảnh trong Desktop mode');
       return { images: [] };
@@ -1208,6 +1214,12 @@ const App: React.FC = () => {
 
     // Process each shortcode
     for (const { shortcode, contextParagraph } of shortcodePairs) {
+      // Check if user stopped the queue
+      if (stopRef.current) {
+        appendLog(itemId, `[IMAGE] Dừng xử lý ảnh do người dùng dừng queue`);
+        break;
+      }
+
       appendLog(itemId, `[IMAGE] Xử lý ${shortcode}...`);
 
       // Search images based on context, reusing conversation URL if available
@@ -1413,10 +1425,12 @@ const App: React.FC = () => {
 
           // Process image generation if enabled
           let imageData: any[] = [];
-          if (step.imageConfig?.enabled) {
+          if (step.imageConfig?.enabled && !stopRef.current) {
             const imageResult = await processImageGeneration(stepResponse, step, id);
             stepResponse = imageResult.updatedResponse;
             imageData = imageResult.imageData;
+          } else if (step.imageConfig?.enabled && stopRef.current) {
+            appendLog(id, '[IMAGE] Bỏ qua xử lý ảnh do người dùng dừng queue');
           }
 
           previousResult = stepResponse;
