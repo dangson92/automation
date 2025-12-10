@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { Upload, X, FileSpreadsheet, CheckCircle2, AlertTriangle, ArrowRight } from 'lucide-react';
-import { parseFile, ParsedData, extractInputVariables } from '../services/parseFileService';
+import { Upload, X, FileSpreadsheet, CheckCircle2, AlertTriangle, ArrowRight, Link2, Loader2 } from 'lucide-react';
+import { parseFile, ParsedData, extractInputVariables, fetchGoogleSheet } from '../services/parseFileService';
 import { QueueItem, Status, WorkflowStep } from '../types';
 
 interface ImportInputProps {
@@ -16,7 +16,10 @@ interface ColumnMapping {
 const generateId = () => Math.random().toString(36).substring(2, 11);
 
 export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, currentWorkflowId }) => {
+  const [importMode, setImportMode] = useState<'file' | 'googlesheet'>('file');
   const [file, setFile] = useState<File | null>(null);
+  const [googleSheetUrl, setGoogleSheetUrl] = useState<string>('');
+  const [isLoadingSheet, setIsLoadingSheet] = useState<boolean>(false);
   const [parsedData, setParsedData] = useState<ParsedData | null>(null);
   const [error, setError] = useState<string>('');
   const [mapping, setMapping] = useState<ColumnMapping>({});
@@ -82,6 +85,44 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
     }
   };
 
+  const handleLoadGoogleSheet = async () => {
+    if (!googleSheetUrl.trim()) {
+      setError('Vui lòng nhập URL Google Sheet');
+      return;
+    }
+
+    setIsLoadingSheet(true);
+    setError('');
+    setParsedData(null);
+    setMapping({});
+
+    const result = await fetchGoogleSheet(googleSheetUrl);
+
+    setIsLoadingSheet(false);
+
+    if (result.success && result.data) {
+      setParsedData(result.data);
+
+      // Extract input variables from steps
+      const variables = extractAllInputVariables();
+      setInputVariables(variables);
+
+      // Auto-map first column to "input"
+      if (result.data.headers.length > 0 && variables.includes('input')) {
+        setMapping({ input: result.data.headers[0] });
+      }
+    } else {
+      setError(result.error || 'Unknown error');
+    }
+  };
+
+  const handleClearGoogleSheet = () => {
+    setGoogleSheetUrl('');
+    setParsedData(null);
+    setError('');
+    setMapping({});
+  };
+
   const handleMappingChange = (inputVar: string, column: string) => {
     setMapping(prev => ({
       ...prev,
@@ -124,7 +165,11 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
     onAddToQueue(newItems);
 
     // Reset after adding
-    handleRemoveFile();
+    if (importMode === 'file') {
+      handleRemoveFile();
+    } else {
+      handleClearGoogleSheet();
+    }
   };
 
   const getMappedPreview = () => {
@@ -143,51 +188,161 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
 
   return (
     <div className="space-y-4">
-      {/* File Upload Area */}
-      <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 hover:border-slate-400 transition-colors">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".csv,.xlsx,.xls"
-          onChange={handleFileSelect}
-          className="hidden"
-          id="file-upload"
-        />
+      {/* Import Mode Switcher */}
+      <div className="flex gap-2 border-b border-slate-200">
+        <button
+          onClick={() => {
+            setImportMode('file');
+            handleClearGoogleSheet();
+          }}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all ${
+            importMode === 'file'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Upload className="w-4 h-4" />
+          <span>Upload File</span>
+        </button>
+        <button
+          onClick={() => {
+            setImportMode('googlesheet');
+            handleRemoveFile();
+          }}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all ${
+            importMode === 'googlesheet'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Link2 className="w-4 h-4" />
+          <span>Google Sheet</span>
+        </button>
+      </div>
 
-        {!file ? (
-          <label
-            htmlFor="file-upload"
-            className="flex flex-col items-center justify-center cursor-pointer"
-          >
-            <Upload className="w-12 h-12 text-slate-400 mb-3" />
+      {/* File Upload Area */}
+      {importMode === 'file' && (
+        <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 hover:border-slate-400 transition-colors">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            onChange={handleFileSelect}
+            className="hidden"
+            id="file-upload"
+          />
+
+          {!file ? (
+            <label
+              htmlFor="file-upload"
+              className="flex flex-col items-center justify-center cursor-pointer"
+            >
+              <Upload className="w-12 h-12 text-slate-400 mb-3" />
+              <p className="text-sm font-medium text-slate-700 mb-1">
+                Click để chọn file hoặc kéo thả vào đây
+              </p>
+              <p className="text-xs text-slate-500">
+                Hỗ trợ CSV, XLSX, XLS (có tiêu đề cột)
+              </p>
+            </label>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <FileSpreadsheet className="w-8 h-8 text-green-500" />
+                <div>
+                  <p className="text-sm font-medium text-slate-700">{file.name}</p>
+                  <p className="text-xs text-slate-500">
+                    {(file.size / 1024).toFixed(1)} KB
+                    {parsedData && ` • ${parsedData.rows.length} dòng`}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleRemoveFile}
+                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Google Sheet Input Area */}
+      {importMode === 'googlesheet' && (
+        <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 space-y-4">
+          <div className="flex flex-col items-center text-center mb-4">
+            <Link2 className="w-12 h-12 text-slate-400 mb-3" />
             <p className="text-sm font-medium text-slate-700 mb-1">
-              Click để chọn file hoặc kéo thả vào đây
+              Import từ Google Sheet
             </p>
             <p className="text-xs text-slate-500">
-              Hỗ trợ CSV, XLSX, XLS (có tiêu đề cột)
+              Nhập link Google Sheet (phải được chia sẻ công khai)
             </p>
-          </label>
-        ) : (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <FileSpreadsheet className="w-8 h-8 text-green-500" />
-              <div>
-                <p className="text-sm font-medium text-slate-700">{file.name}</p>
-                <p className="text-xs text-slate-500">
-                  {(file.size / 1024).toFixed(1)} KB
-                  {parsedData && ` • ${parsedData.rows.length} dòng`}
-                </p>
-              </div>
-            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={googleSheetUrl}
+              onChange={(e) => setGoogleSheetUrl(e.target.value)}
+              placeholder="https://docs.google.com/spreadsheets/d/..."
+              className="flex-1 px-4 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && googleSheetUrl.trim()) {
+                  handleLoadGoogleSheet();
+                }
+              }}
+            />
             <button
-              onClick={handleRemoveFile}
-              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+              onClick={handleLoadGoogleSheet}
+              disabled={!googleSheetUrl.trim() || isLoadingSheet}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
             >
-              <X className="w-5 h-5 text-slate-500" />
+              {isLoadingSheet ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Đang tải...</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4" />
+                  <span>Tải dữ liệu</span>
+                </>
+              )}
             </button>
           </div>
-        )}
-      </div>
+
+          {parsedData && (
+            <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-green-500" />
+                <div>
+                  <p className="text-sm font-medium text-green-700">Đã tải thành công</p>
+                  <p className="text-xs text-green-600">
+                    {parsedData.rows.length} dòng • {parsedData.headers.length} cột
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleClearGoogleSheet}
+                className="p-2 hover:bg-green-100 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4 text-green-600" />
+              </button>
+            </div>
+          )}
+
+          <div className="text-xs text-slate-500 space-y-1">
+            <p>💡 <strong>Lưu ý:</strong></p>
+            <ul className="list-disc list-inside ml-2 space-y-1">
+              <li>Google Sheet phải được chia sẻ công khai hoặc "Anyone with the link can view"</li>
+              <li>File phải có tiêu đề cột ở dòng đầu tiên</li>
+              <li>Nếu sheet có nhiều tab, hệ thống sẽ lấy tab đầu tiên (hoặc tab trong URL nếu có #gid=...)</li>
+            </ul>
+          </div>
+        </div>
+      )}
 
       {/* Error Message */}
       {error && (

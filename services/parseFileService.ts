@@ -148,6 +148,118 @@ export async function parseFile(file: File): Promise<ParseResult> {
 }
 
 /**
+ * Extract Google Sheet ID from URL
+ * Supports various Google Sheets URL formats
+ */
+export function parseGoogleSheetUrl(url: string): { sheetId: string; gid?: string } | null {
+  try {
+    // Pattern 1: https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit...
+    let match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+    if (match) {
+      const sheetId = match[1];
+
+      // Try to extract gid (sheet tab id) if present
+      const gidMatch = url.match(/[#&]gid=([0-9]+)/);
+      const gid = gidMatch ? gidMatch[1] : undefined;
+
+      return { sheetId, gid };
+    }
+
+    return null;
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Fetch and parse data from Google Sheet URL
+ */
+export async function fetchGoogleSheet(url: string): Promise<ParseResult> {
+  try {
+    const parsed = parseGoogleSheetUrl(url);
+
+    if (!parsed) {
+      return {
+        success: false,
+        error: 'URL Google Sheet không hợp lệ. Vui lòng sử dụng URL dạng: https://docs.google.com/spreadsheets/d/...'
+      };
+    }
+
+    // Construct CSV export URL
+    let exportUrl = `https://docs.google.com/spreadsheets/d/${parsed.sheetId}/export?format=csv`;
+    if (parsed.gid) {
+      exportUrl += `&gid=${parsed.gid}`;
+    }
+
+    // Fetch CSV data
+    const response = await fetch(exportUrl);
+
+    if (!response.ok) {
+      if (response.status === 403 || response.status === 401) {
+        return {
+          success: false,
+          error: 'Không thể truy cập Google Sheet. Vui lòng đảm bảo sheet được chia sẻ công khai hoặc "Anyone with the link can view".'
+        };
+      }
+      return {
+        success: false,
+        error: `Lỗi khi tải Google Sheet: ${response.statusText}`
+      };
+    }
+
+    const csvText = await response.text();
+
+    // Parse CSV using PapaParse
+    return new Promise((resolve) => {
+      Papa.parse(csvText, {
+        header: true,
+        encoding: 'UTF-8',
+        skipEmptyLines: true,
+        complete: (results) => {
+          if (results.errors.length > 0) {
+            resolve({
+              success: false,
+              error: `Lỗi parse dữ liệu: ${results.errors[0].message}`
+            });
+            return;
+          }
+
+          const headers = results.meta.fields || [];
+          const rows = results.data as Record<string, string>[];
+
+          if (headers.length === 0) {
+            resolve({
+              success: false,
+              error: 'Không tìm thấy tiêu đề cột trong Google Sheet'
+            });
+            return;
+          }
+
+          resolve({
+            success: true,
+            data: {
+              headers,
+              rows
+            }
+          });
+        },
+        error: (error) => {
+          resolve({
+            success: false,
+            error: `Lỗi parse CSV: ${error.message}`
+          });
+        }
+      });
+    });
+  } catch (error) {
+    return {
+      success: false,
+      error: `Lỗi khi tải Google Sheet: ${error instanceof Error ? error.message : 'Unknown error'}`
+    };
+  }
+}
+
+/**
  * Generate template variables from input keys
  */
 export function extractInputVariables(template: string): string[] {
