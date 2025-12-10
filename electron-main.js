@@ -723,7 +723,9 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
             console.log('Warning: Stop not detected, using fallback timing...');
             await sleep(10000);
           } else {
-            for (let attempts = 0; attempts < 120; attempts++) {
+            // Tăng timeout lên 600 lần (10 phút) để đủ cho content dài
+            const maxWaitAttempts = 600;
+            for (let attempts = 0; attempts < maxWaitAttempts; attempts++) {
               await sleep(1000);
               const present = anyStopPresent();
               if (!present) {
@@ -735,6 +737,7 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
                 console.log('Still generating... attempt:', attempts, 'Stop present:', present);
               }
             }
+            console.log('Stopped monitoring after reaching max wait time');
           }
 
           // 5. Capture the output
@@ -742,33 +745,57 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
           const urlLower = (window.location.href || '').toLowerCase();
 
           // Scroll to bottom to trigger lazy rendering
-          // Strategy: scroll multiple times with delay regardless of height change
-          // to ensure lazy content gets loaded
+          // Try multiple scroll methods to ensure it works across different browsers/modes
           console.log('Scrolling to load all content...');
-          const minScrollAttempts = 3; // Scroll ít nhất 3 lần
-          const maxScrollAttempts = 20; // Tối đa 20 lần
+          const minScrollAttempts = 3;
+          const maxScrollAttempts = 20;
           let lastScrollHeight = 0;
-          let currentScrollHeight = document.body.scrollHeight;
+          let currentScrollHeight = Math.max(
+            document.body.scrollHeight,
+            document.documentElement.scrollHeight
+          );
           let scrollAttempts = 0;
-          let unchangedCount = 0; // Đếm số lần height không đổi liên tiếp
+          let unchangedCount = 0;
 
           while (scrollAttempts < maxScrollAttempts) {
             lastScrollHeight = currentScrollHeight;
-            window.scrollTo(0, document.body.scrollHeight);
-            await sleep(1000); // Tăng delay để đợi lazy load
-            currentScrollHeight = document.body.scrollHeight;
-            scrollAttempts++;
-            console.log('Scroll attempt', scrollAttempts, '- Height:', currentScrollHeight);
 
-            // Nếu height không đổi
+            // Try multiple scroll methods for compatibility
+            const scrollTarget = Math.max(
+              document.body.scrollHeight,
+              document.documentElement.scrollHeight
+            );
+
+            // Method 1: window.scrollTo
+            window.scrollTo(0, scrollTarget);
+
+            // Method 2: document.documentElement.scrollTop
+            document.documentElement.scrollTop = scrollTarget;
+
+            // Method 3: document.body.scrollTop
+            document.body.scrollTop = scrollTarget;
+
+            // Method 4: Find and scroll main container
+            const mainContainer = document.querySelector('main, [role="main"], .main-content');
+            if (mainContainer) {
+              mainContainer.scrollTop = mainContainer.scrollHeight;
+            }
+
+            await sleep(1000);
+            currentScrollHeight = Math.max(
+              document.body.scrollHeight,
+              document.documentElement.scrollHeight
+            );
+            scrollAttempts++;
+            console.log('Scroll attempt', scrollAttempts, '- Height:', currentScrollHeight, 'Target:', scrollTarget);
+
             if (lastScrollHeight === currentScrollHeight) {
               unchangedCount++;
-              // Dừng nếu đã scroll tối thiểu và height không đổi 2 lần liên tiếp
               if (scrollAttempts >= minScrollAttempts && unchangedCount >= 2) {
                 break;
               }
             } else {
-              unchangedCount = 0; // Reset nếu height có thay đổi
+              unchangedCount = 0;
             }
           }
 
