@@ -741,13 +741,23 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
           console.log('Capturing output...');
           const urlLower = (window.location.href || '').toLowerCase();
 
-          // Scroll to bottom multiple times to ensure all content is loaded (lazy rendering)
+          // Scroll to bottom until page stops growing (lazy rendering complete)
           console.log('Scrolling to load all content...');
-          for (let i = 0; i < 4; i++) {
+          let lastScrollHeight = 0;
+          let currentScrollHeight = document.body.scrollHeight;
+          let scrollAttempts = 0;
+          const maxScrollAttempts = 20; // Timeout sau 20 lần để tránh vòng lặp vô hạn
+
+          while (lastScrollHeight !== currentScrollHeight && scrollAttempts < maxScrollAttempts) {
+            lastScrollHeight = currentScrollHeight;
             window.scrollTo(0, document.body.scrollHeight);
             await sleep(800);
-            console.log('Scroll attempt', i + 1, '/4');
+            currentScrollHeight = document.body.scrollHeight;
+            scrollAttempts++;
+            console.log('Scroll attempt', scrollAttempts, '- Height:', currentScrollHeight);
           }
+
+          console.log('Reached bottom of page after', scrollAttempts, 'attempts');
 
           // Platform-specific output extraction
           let targetEl;
@@ -819,10 +829,21 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
 
             // Scroll within the message container to load lazy content
             console.log('Scrolling within message container...');
-            for (let i = 0; i < 3; i++) {
+            let lastMsgScrollHeight = 0;
+            let currentMsgScrollHeight = lastMessage.scrollHeight;
+            let msgScrollAttempts = 0;
+            const maxMsgScrollAttempts = 10;
+
+            while (lastMsgScrollHeight !== currentMsgScrollHeight && msgScrollAttempts < maxMsgScrollAttempts) {
+              lastMsgScrollHeight = currentMsgScrollHeight;
               lastMessage.scrollTop = lastMessage.scrollHeight;
               await sleep(500);
+              currentMsgScrollHeight = lastMessage.scrollHeight;
+              msgScrollAttempts++;
+              console.log('Message scroll attempt', msgScrollAttempts, '- Height:', currentMsgScrollHeight);
             }
+
+            console.log('Reached bottom of message after', msgScrollAttempts, 'attempts');
 
             // Use the entire message element to capture all content
             // (don't try to find a specific content div, as content may be split across multiple divs)
