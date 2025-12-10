@@ -59,6 +59,7 @@ export interface QueueItem {
   startTime?: number; // Timestamp when queue item started running
   endTime?: number; // Timestamp when queue item completed or failed
   workflowId?: string; // ID of workflow this queue item belongs to
+  mappedInputs?: Record<string, string>; // Mapped input data from import (e.g., { "input": "Title", "input1": "Content" })
 }
 
 export interface AppConfig {

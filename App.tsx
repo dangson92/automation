@@ -1,9 +1,10 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Play, Pause, Plus, Trash2, Download, Save, UserCog, ChevronDown, Bot, Layout, Zap, X, Globe, HelpCircle, ArrowRight, Link as LinkIcon, Target, CheckCircle2, Cpu, FileText, Box, Layers, AlertTriangle, Monitor, Eye, EyeOff, Settings, Image as ImageIcon, RotateCcw, Search, Filter } from 'lucide-react';
+import { Play, Pause, Plus, Trash2, Download, Save, UserCog, ChevronDown, Bot, Layout, Zap, X, Globe, HelpCircle, ArrowRight, Link as LinkIcon, Target, CheckCircle2, Cpu, FileText, Box, Layers, AlertTriangle, Monitor, Eye, EyeOff, Settings, Image as ImageIcon, RotateCcw, Search, Filter, Upload, Edit3 } from 'lucide-react';
 import { Status, QueueItem, AppConfig, SavedAgent, AutomationConfig, WorkflowStep, StepResult } from './types';
 import { OutputEditor } from './components/OutputEditor';
 import { generateContent } from './services/geminiService';
 import { StatusBadge } from './components/StatusBadge';
+import { ImportInput } from './components/ImportInput';
 
 // Fix for missing chrome types
 declare var chrome: any;
@@ -129,6 +130,9 @@ const App: React.FC = () => {
   // Queue filter and search
   const [filterStatus, setFilterStatus] = useState<string>('all'); // 'all', 'queued', 'running', 'completed', 'failed'
   const [searchText, setSearchText] = useState<string>('');
+
+  // Input mode: manual or import
+  const [inputMode, setInputMode] = useState<'manual' | 'import'>('manual');
 
   // --- Init ---
   useEffect(() => {
@@ -564,7 +568,21 @@ const App: React.FC = () => {
       previousResult = prevRes?.response || '';
     }
 
-    let promptToSend = step.template.replace(/\{\{input\}\}/g, item.originalPrompt);
+    // Replace input variables - check for mappedInputs first
+    let promptToSend = step.template;
+
+    if (item.mappedInputs) {
+      // If we have mappedInputs, replace all input variables
+      Object.keys(item.mappedInputs).forEach(inputVar => {
+        const value = item.mappedInputs![inputVar] || '';
+        const regex = new RegExp(`\\{\\{${inputVar}\\}\\}`, 'g');
+        promptToSend = promptToSend.replace(regex, value);
+      });
+    } else {
+      // Fallback to original behavior for manual input
+      promptToSend = promptToSend.replace(/\{\{input\}\}/g, item.originalPrompt);
+    }
+
     promptToSend = promptToSend.replace(/\{\{prev\}\}/g, previousResult);
     for (let prevIdx = 0; prevIdx < stepIndex; prevIdx++) {
       const prevStep = config.steps[prevIdx];
@@ -1228,8 +1246,22 @@ const App: React.FC = () => {
           let stepUrl = step.url || automationConfig.defaultUrl;
           appendLog(id, `Đang chạy: ${step.name}...`);
 
-          let promptToSend = step.template.replace(/\{\{input\}\}/g, currentItem.originalPrompt);
+          // Replace input variables - check for mappedInputs first
+          let promptToSend = step.template;
 
+          if (currentItem.mappedInputs) {
+            // If we have mappedInputs, replace all input variables
+            Object.keys(currentItem.mappedInputs).forEach(inputVar => {
+              const value = currentItem.mappedInputs![inputVar] || '';
+              const regex = new RegExp(`\\{\\{${inputVar}\\}\\}`, 'g');
+              promptToSend = promptToSend.replace(regex, value);
+            });
+          } else {
+            // Fallback to original behavior for manual input
+            promptToSend = promptToSend.replace(/\{\{input\}\}/g, currentItem.originalPrompt);
+          }
+
+          // Replace {{prev}} and {{prev1}}, {{prev2}}, etc.
           promptToSend = promptToSend.replace(/\{\{prev\}\}/g, previousResult);
 
           for (let prevIdx = 0; prevIdx < i; prevIdx++) {
@@ -2403,7 +2435,10 @@ const App: React.FC = () => {
                  <div>
                     <h2 className="text-lg font-semibold text-slate-800">Dữ liệu đầu vào (Batch Input)</h2>
                     <p className="text-sm text-slate-500">
-                       Hệ thống sẽ chạy {inputText.split('\n').filter(l => l.trim()).length} dòng dữ liệu qua {config.steps.length} bước xử lý.
+                       {inputMode === 'manual'
+                         ? `Hệ thống sẽ chạy ${inputText.split('\n').filter(l => l.trim()).length} dòng dữ liệu qua ${config.steps.length} bước xử lý.`
+                         : `Import và map dữ liệu từ file CSV/XLSX qua ${config.steps.length} bước xử lý.`
+                       }
                     </p>
                  </div>
                  <div className="flex items-center space-x-4">
@@ -2425,32 +2460,72 @@ const App: React.FC = () => {
                     )}
                  </div>
               </div>
-              
-              <div className="relative">
-                <textarea
-                  ref={inputTextareaRef}
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  onClick={(e) => {
-                    // Ensure textarea is always clickable and focusable
-                    const target = e.currentTarget;
-                    target.removeAttribute('disabled');
-                    target.removeAttribute('readonly');
-                    target.focus();
-                  }}
-                  placeholder="Nhập mỗi prompt một dòng..."
-                  className="w-full h-24 border border-slate-300 rounded-xl p-4 text-sm font-mono focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm resize-y"
-                  style={{ pointerEvents: 'auto', userSelect: 'auto' }}
-                />
+
+              {/* Tab Switcher */}
+              <div className="flex gap-2 border-b border-slate-200">
                 <button
-                  onClick={handleAddPrompts}
-                  disabled={!inputText.trim()}
-                  className="absolute bottom-3 right-3 bg-slate-800 hover:bg-black text-white px-3 py-1.5 rounded-lg text-xs font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-all"
+                  onClick={() => setInputMode('manual')}
+                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all ${
+                    inputMode === 'manual'
+                      ? 'text-blue-600 border-b-2 border-blue-600'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
                 >
-                  <Plus className="w-3 h-3" />
-                  <span>Thêm vào Queue</span>
+                  <Edit3 className="w-4 h-4" />
+                  <span>Nhập thủ công</span>
+                </button>
+                <button
+                  onClick={() => setInputMode('import')}
+                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all ${
+                    inputMode === 'import'
+                      ? 'text-blue-600 border-b-2 border-blue-600'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Import từ file</span>
                 </button>
               </div>
+
+              {/* Manual Input Mode */}
+              {inputMode === 'manual' && (
+                <div className="relative">
+                  <textarea
+                    ref={inputTextareaRef}
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    onClick={(e) => {
+                      // Ensure textarea is always clickable and focusable
+                      const target = e.currentTarget;
+                      target.removeAttribute('disabled');
+                      target.removeAttribute('readonly');
+                      target.focus();
+                    }}
+                    placeholder="Nhập mỗi prompt một dòng..."
+                    className="w-full h-24 border border-slate-300 rounded-xl p-4 text-sm font-mono focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all shadow-sm resize-y"
+                    style={{ pointerEvents: 'auto', userSelect: 'auto' }}
+                  />
+                  <button
+                    onClick={handleAddPrompts}
+                    disabled={!inputText.trim()}
+                    className="absolute bottom-3 right-3 bg-slate-800 hover:bg-black text-white px-3 py-1.5 rounded-lg text-xs font-medium shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-all"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Thêm vào Queue</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Import Mode */}
+              {inputMode === 'import' && (
+                <ImportInput
+                  steps={config.steps}
+                  onAddToQueue={(items) => {
+                    setQueue(prev => [...prev, ...items]);
+                  }}
+                  currentWorkflowId={currentWorkflowId || undefined}
+                />
+              )}
               
               {/* Progress Bar */}
               {isProcessing && (

@@ -52,12 +52,15 @@
     "@google/genai": "^1.30.0",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.554.0",
+    "papaparse": "^5.5.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "tinymce": "^8.2.2"
+    "tinymce": "^8.2.2",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
+    "@types/papaparse": "^5.5.1",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-react": "^4.2.1",
