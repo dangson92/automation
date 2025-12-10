@@ -2517,7 +2517,7 @@ const App: React.FC = () => {
                  <div className="flex items-center space-x-4">
                     {/* RUN CONTROLS */}
                     {isProcessing ? (
-                       <button onClick={handleStop} className="flex items-center space-x-2 bg-red-100 text-red-700 px-6 py-2 rounded-lg font-bold hover:bg-red-200 transition-colors">
+                       <button onClick={handleStop} className="flex items-center space-x-2 bg-red-100 text-red-700 px-8 py-2.5 rounded-lg font-bold hover:bg-red-200 transition-colors">
                           <Pause className="w-5 h-5 fill-current" />
                           <span>Dừng lại</span>
                        </button>
