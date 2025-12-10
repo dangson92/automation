@@ -102,6 +102,12 @@ const getQueueFilePath = () => {
 ipcMain.handle('queue-save', async (event, queueData) => {
   try {
     const filePath = getQueueFilePath();
+    // Debug: Check if mappedInputs is being saved
+    const itemsWithMappedInputs = queueData.filter(item => item.mappedInputs);
+    console.log('Saving queue - Total items:', queueData.length, ', Items with mappedInputs:', itemsWithMappedInputs.length);
+    if (itemsWithMappedInputs.length > 0) {
+      console.log('Sample mappedInputs being saved:', JSON.stringify(itemsWithMappedInputs[0].mappedInputs, null, 2));
+    }
     fs.writeFileSync(filePath, JSON.stringify(queueData, null, 2), 'utf-8');
     console.log('Queue saved to:', filePath);
     return { success: true };
@@ -117,8 +123,16 @@ ipcMain.handle('queue-load', async () => {
     const filePath = getQueueFilePath();
     if (fs.existsSync(filePath)) {
       const data = fs.readFileSync(filePath, 'utf-8');
+      const parsedData = JSON.parse(data);
       console.log('Queue loaded from:', filePath);
-      return { success: true, data: JSON.parse(data) };
+      console.log('Queue items count:', parsedData.length);
+      // Debug: Check if mappedInputs is preserved
+      const itemsWithMappedInputs = parsedData.filter(item => item.mappedInputs);
+      console.log('Items with mappedInputs:', itemsWithMappedInputs.length);
+      if (itemsWithMappedInputs.length > 0) {
+        console.log('Sample mappedInputs:', JSON.stringify(itemsWithMappedInputs[0].mappedInputs, null, 2));
+      }
+      return { success: true, data: parsedData };
     } else {
       console.log('No queue file found, starting fresh');
       return { success: true, data: [] };
