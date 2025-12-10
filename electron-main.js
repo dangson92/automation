@@ -741,12 +741,13 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
           console.log('Capturing output...');
           const urlLower = (window.location.href || '').toLowerCase();
 
-          // Scroll to bottom to ensure all content is loaded (lazy rendering)
+          // Scroll to bottom multiple times to ensure all content is loaded (lazy rendering)
           console.log('Scrolling to load all content...');
-          window.scrollTo(0, document.body.scrollHeight);
-          await sleep(1000);
-          window.scrollTo(0, document.body.scrollHeight);
-          await sleep(500);
+          for (let i = 0; i < 4; i++) {
+            window.scrollTo(0, document.body.scrollHeight);
+            await sleep(800);
+            console.log('Scroll attempt', i + 1, '/4');
+          }
 
           // Platform-specific output extraction
           let targetEl;
@@ -778,26 +779,55 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
           } else if (urlLower.includes('claude.ai')) {
             // Claude: Find the last assistant message
             // Try multiple selectors for Claude's message structure
-            const claudeMessages = document.querySelectorAll('div[data-testid*="message"], div[data-is-streaming], div.font-claude-message');
+            const allMessages = document.querySelectorAll('div[data-testid*="message"], div[data-is-streaming], div.font-claude-message');
 
-            if (claudeMessages.length === 0) {
+            if (allMessages.length === 0) {
               console.error('No Claude messages found');
               return { error: 'Không tìm thấy tin nhắn trả lời từ Claude' };
             }
 
-            // Get the last message (most recent response)
-            let lastMessage = claudeMessages[claudeMessages.length - 1];
+            console.log('Total messages found:', allMessages.length);
 
-            // Try to find the content container within the message
-            let contentEl = lastMessage.querySelector('div.prose, div[class*="markdown"], div[class*="content"]');
+            // Filter to get only assistant messages (exclude user messages)
+            // User messages typically have input-related classes or data attributes
+            const assistantMessages = Array.from(allMessages).filter(msg => {
+              const html = msg.innerHTML || '';
+              const classes = msg.className || '';
+              const testId = msg.getAttribute('data-testid') || '';
 
-            if (!contentEl) {
-              console.log('No content container found, using entire message element');
-              contentEl = lastMessage;
+              // Skip if it's a user message (has input/user indicators)
+              if (classes.includes('user') || testId.includes('user') || testId.includes('input')) {
+                return false;
+              }
+
+              // Include if it has substantial content (assistant messages are usually longer)
+              return html.length > 100;
+            });
+
+            console.log('Assistant messages found:', assistantMessages.length);
+
+            if (assistantMessages.length === 0) {
+              console.log('No assistant messages found, using last message');
+              // Fallback to last message if filtering failed
+              lastMessage = allMessages[allMessages.length - 1];
+            } else {
+              // Get the last assistant message (most recent response)
+              lastMessage = assistantMessages[assistantMessages.length - 1];
             }
 
-            targetEl = contentEl;
-            console.log('Using Claude element, innerHTML length:', targetEl.innerHTML.length);
+            console.log('Selected message innerHTML length:', lastMessage.innerHTML.length);
+
+            // Scroll within the message container to load lazy content
+            console.log('Scrolling within message container...');
+            for (let i = 0; i < 3; i++) {
+              lastMessage.scrollTop = lastMessage.scrollHeight;
+              await sleep(500);
+            }
+
+            // Use the entire message element to capture all content
+            // (don't try to find a specific content div, as content may be split across multiple divs)
+            targetEl = lastMessage;
+            console.log('Using Claude message element, final innerHTML length:', targetEl.innerHTML.length);
 
           } else {
             // For other platforms, use the original logic
