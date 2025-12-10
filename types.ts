@@ -60,6 +60,9 @@ export interface QueueItem {
   endTime?: number; // Timestamp when queue item completed or failed
   workflowId?: string; // ID of workflow this queue item belongs to
   mappedInputs?: Record<string, string>; // Mapped input data from import (e.g., { "input": "Title", "input1": "Content" })
+  source?: 'manual' | 'import'; // How the item was added: manual input or import
+  importSource?: 'file' | 'googlesheet'; // If imported, where from
+  fileName?: string; // File name if imported from file
 }
 
 export interface AppConfig {

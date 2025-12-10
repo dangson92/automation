@@ -28,6 +28,7 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
   const [visibleInputCount, setVisibleInputCount] = useState<number>(3); // Start with input, input1, input2
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false); // Collapse after adding to queue
   const [isMappingCollapsed, setIsMappingCollapsed] = useState<boolean>(false); // Collapse mapping area
+  const [hasImportedOnce, setHasImportedOnce] = useState<boolean>(false); // Track if imported at least once
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const getVisibleInputVariables = () => {
@@ -63,12 +64,16 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
   };
 
   const handleRemoveFile = () => {
+    // This is only called when user clicks "Đổi file khác" button
+    // Reset everything including hasImportedOnce
     setFile(null);
     setParsedData(null);
     setError('');
     setMapping({});
     setVisibleInputCount(3);
     setIsCollapsed(false);
+    setHasImportedOnce(false);
+    setIsMappingCollapsed(false);
     onMappingChange?.(0);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -103,12 +108,16 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
   };
 
   const handleClearGoogleSheet = () => {
+    // This is only called when user clicks "Đổi file khác" button
+    // Reset everything including hasImportedOnce
     setGoogleSheetUrl('');
     setParsedData(null);
     setError('');
     setMapping({});
     setVisibleInputCount(3);
     setIsCollapsed(false);
+    setHasImportedOnce(false);
+    setIsMappingCollapsed(false);
     onMappingChange?.(0);
   };
 
@@ -202,12 +211,18 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
           results: [],
           logs: [],
           workflowId: currentWorkflowId || undefined,
-          mappedInputs: mappedData
-        } as QueueItem & { mappedInputs?: Record<string, string> });
+          mappedInputs: mappedData,
+          source: 'import',
+          importSource: importMode === 'file' ? 'file' : 'googlesheet',
+          fileName: importMode === 'file' ? file?.name : 'Google Sheet'
+        } as QueueItem);
       }
     });
 
     onAddToQueue(newItems);
+
+    // Mark as imported once
+    setHasImportedOnce(true);
 
     // Collapse the import area after adding to queue
     setIsCollapsed(true);
@@ -269,10 +284,7 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
           {/* Mode Switcher */}
           <div className="flex gap-2">
             <button
-              onClick={() => {
-                setImportMode('file');
-                handleClearGoogleSheet();
-              }}
+              onClick={() => setImportMode('file')}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-all rounded ${
                 importMode === 'file'
                   ? 'bg-blue-50 text-blue-600 border border-blue-200'
@@ -283,10 +295,7 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
               <span>Upload File</span>
             </button>
             <button
-              onClick={() => {
-                setImportMode('googlesheet');
-                handleRemoveFile();
-              }}
+              onClick={() => setImportMode('googlesheet')}
               className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-all rounded ${
                 importMode === 'googlesheet'
                   ? 'bg-blue-50 text-blue-600 border border-blue-200'
@@ -529,7 +538,7 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
             className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
           >
             <Upload className="w-4 h-4" />
-            <span>Update {getUniqueItemsCount()} dòng vào Queue</span>
+            <span>{hasImportedOnce ? 'Update' : 'Thêm'} {getUniqueItemsCount()} dòng vào Queue</span>
           </button>
         </div>
       )}
