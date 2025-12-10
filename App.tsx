@@ -637,9 +637,41 @@ const App: React.FC = () => {
       // Process image generation if step has imageConfig enabled
       let imageData: any[] = [];
       if (step.imageConfig?.enabled) {
-        const imageResult = await processImageGeneration(newResponse, step, itemId);
-        newResponse = imageResult.updatedResponse;
-        imageData = imageResult.imageData;
+        // Check if we have existing imageData from previous run
+        const existingImageData = stepRes.imageData;
+
+        if (existingImageData && existingImageData.length > 0) {
+          // Reuse existing images instead of searching again
+          appendLog(itemId, `[IMAGE] Tái sử dụng ${existingImageData.length} ảnh từ lần chạy trước`);
+
+          // Parse shortcodes from new response
+          const shortcodePairs = parseImageShortcodes(newResponse);
+
+          if (shortcodePairs.length === existingImageData.length) {
+            // Same number of shortcodes - reuse images
+            let updatedResponse = newResponse;
+            shortcodePairs.forEach((pair, index) => {
+              const existingImg = existingImageData[index];
+              const altText = existingImg.contextParagraph?.substring(0, 100) || pair.contextParagraph.substring(0, 100);
+              const imgTag = `<div style="text-align: center; margin: 1.5em 0;"><img src="${existingImg.selectedImage}" alt="${altText}" class="auto-generated-image" data-image-idx="${index}" style="max-width: 100%; height: auto; display: inline-block;" /></div>`;
+              updatedResponse = updatedResponse.replace(pair.shortcode, imgTag);
+            });
+            newResponse = updatedResponse;
+            imageData = existingImageData;
+            appendLog(itemId, `[IMAGE] Đã tái sử dụng ảnh thành công`);
+          } else {
+            // Different number of shortcodes - search for new images
+            appendLog(itemId, `[IMAGE] Số lượng shortcode thay đổi (${shortcodePairs.length} vs ${existingImageData.length}), tìm ảnh mới...`);
+            const imageResult = await processImageGeneration(newResponse, step, itemId);
+            newResponse = imageResult.updatedResponse;
+            imageData = imageResult.imageData;
+          }
+        } else {
+          // No existing images - process normally
+          const imageResult = await processImageGeneration(newResponse, step, itemId);
+          newResponse = imageResult.updatedResponse;
+          imageData = imageResult.imageData;
+        }
       }
 
       setRerunningStep(null);
