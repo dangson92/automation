@@ -1073,8 +1073,19 @@ const App: React.FC = () => {
 
                                   // Otherwise extract HTML, removing UI elements
                                   const clone = root.cloneNode(true) as HTMLElement;
-                                  // Remove wrapper divs, buttons, and other UI elements (keep pre for code blocks)
-                                  clone.querySelectorAll('[aria-label="Copy"], button, svg, div.sticky, .rounded-2xl, [class*="corner-"]').forEach(el => el.remove());
+                                  // Remove only UI elements (buttons, icons), not wrapper divs that contain content
+                                  clone.querySelectorAll('[aria-label="Copy"], [aria-label="Sao chép"], button, svg, div.sticky, div.absolute').forEach(el => el.remove());
+
+                                  // Clean up ChatGPT-style pre blocks: extract code directly
+                                  clone.querySelectorAll('pre').forEach(pre => {
+                                    const codeEl = pre.querySelector('code');
+                                    if (codeEl) {
+                                      // Clear pre and add only code element
+                                      const codeContent = codeEl.cloneNode(true);
+                                      pre.innerHTML = '';
+                                      pre.appendChild(codeContent);
+                                    }
+                                  });
 
                                   // Clean all HTML attributes except href for links
                                   const allElements = clone.querySelectorAll('*');
