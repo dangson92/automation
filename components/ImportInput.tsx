@@ -25,6 +25,7 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
   const [error, setError] = useState<string>('');
   const [mapping, setMapping] = useState<ColumnMapping>({});
   const [visibleInputCount, setVisibleInputCount] = useState<number>(3); // Start with input, input1, input2
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(false); // Collapse after adding to queue
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const getVisibleInputVariables = () => {
@@ -65,6 +66,7 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
     setError('');
     setMapping({});
     setVisibleInputCount(3);
+    setIsCollapsed(false);
     onMappingChange?.(0);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -104,6 +106,7 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
     setError('');
     setMapping({});
     setVisibleInputCount(3);
+    setIsCollapsed(false);
     onMappingChange?.(0);
   };
 
@@ -141,13 +144,14 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
     }
 
     const newItems: QueueItem[] = parsedData.rows.map(row => {
-      const primaryInput = row[mapping.input] || '';
-
       const mappedData: Record<string, string> = {};
       Object.keys(mapping).forEach(inputVar => {
         const column = mapping[inputVar];
         mappedData[inputVar] = row[column] || '';
       });
+
+      // Use the mapped {{input}} value as originalPrompt for display
+      const primaryInput = mappedData['input'] || '';
 
       return {
         id: generateId(),
@@ -163,11 +167,8 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
 
     onAddToQueue(newItems);
 
-    if (importMode === 'file') {
-      handleRemoveFile();
-    } else {
-      handleClearGoogleSheet();
-    }
+    // Collapse the import area after adding to queue
+    setIsCollapsed(true);
   };
 
   const getSampleValues = (inputVar: string): string[] => {
@@ -178,6 +179,28 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
 
   const inputVariables = getVisibleInputVariables();
   const currentStep = !parsedData ? 1 : 2;
+
+  // Collapsed view after adding to queue
+  if (isCollapsed && parsedData) {
+    return (
+      <div className="border border-green-200 bg-green-50 rounded-lg p-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-green-600" />
+            <span className="text-sm font-medium text-green-700">
+              Đã thêm {parsedData.rows.length} dòng vào queue
+            </span>
+          </div>
+          <button
+            onClick={() => setIsCollapsed(false)}
+            className="text-xs text-blue-600 hover:text-blue-700 font-medium underline"
+          >
+            Import thêm
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3" style={{ minHeight: '280px' }}>
@@ -360,7 +383,7 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
             </div>
 
             {/* Table Body - Fixed Height with Scroll */}
-            <div className="max-h-48 overflow-y-auto">
+            <div style={{ height: '192px', overflowY: 'auto' }}>
               {inputVariables.map(inputVar => {
                 const sampleValues = getSampleValues(inputVar);
                 return (
