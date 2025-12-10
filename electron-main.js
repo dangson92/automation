@@ -822,48 +822,40 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
             targetEl = outEls[outEls.length - 1];
           }
           const extractContent = (root) => {
-            // Extract clean HTML for all platforms (ChatGPT, Perplexity, Claude, etc.)
+            // Extract only inner content (text/code) without UI decorations
             const clone = root.cloneNode(true);
 
-            // Remove UI elements only (buttons, copy icons, etc.) - keep all content
-            // IMPORTANT: Do NOT remove content containers inside <pre> tags
-            const elementsToRemove = clone.querySelectorAll('[aria-label="Copy"], button, svg:not([data-icon]), div.sticky');
-            elementsToRemove.forEach(el => {
-              // Skip if element is inside a <pre> tag (it might be part of code content)
-              const isInsidePre = el.closest('pre');
-              if (!isInsidePre) {
-                el.remove();
-              }
-            });
+            // For ChatGPT code blocks: extract from <code> tag
+            const codeElements = clone.querySelectorAll('pre code, code.language-markdown, code[class*="language-"]');
+            if (codeElements.length > 0) {
+              // Get text content from code blocks
+              const codeTexts = Array.from(codeElements).map(code => {
+                // Remove UI elements inside code block first
+                code.querySelectorAll('button, svg, [aria-label="Copy"]').forEach(el => el.remove());
+                return code.innerText || code.textContent || '';
+              });
+              const result = codeTexts.join('\\n\\n').trim();
+              if (result.length > 0) return result;
+            }
 
-            // Remove decorative UI containers that are NOT inside <pre> tags
-            const uiContainers = clone.querySelectorAll('.rounded-2xl, [class*="corner-"]');
-            uiContainers.forEach(el => {
-              const isInsidePre = el.closest('pre');
-              if (!isInsidePre) {
-                el.remove();
-              }
-            });
+            // For regular content: extract semantic content only
+            // Remove all UI decorations
+            clone.querySelectorAll('[aria-label="Copy"], button, svg, div.sticky, .rounded-2xl, [class*="corner-"]').forEach(el => el.remove());
 
             // Remove Perplexity-specific citation elements
             clone.querySelectorAll('.citation, .citation-nbsp, span.citation, span[class*="citation"], a[rel*="nofollow noopener"], span[class*="rounded-badge"]').forEach(el => el.remove());
 
-            // Get innerHTML directly - keep all content and structure
-            let html = clone.innerHTML || '';
+            // Try to get clean text content
+            let text = clone.innerText || clone.textContent || '';
 
-            // If HTML contains encoded entities like &lt; &gt;, it means content is stored as text
-            // Decode HTML entities to get actual HTML
-            if (html.includes('&lt;') || html.includes('&gt;')) {
+            // If text contains HTML entities, decode them
+            if (text.includes('&lt;') || text.includes('&gt;') || text.includes('&amp;')) {
               const tempDiv = document.createElement('div');
-              tempDiv.innerHTML = html;
-              html = tempDiv.textContent || tempDiv.innerText || '';
+              tempDiv.innerHTML = text;
+              text = tempDiv.textContent || tempDiv.innerText || text;
             }
 
-            if (html && html.trim().length > 0) return html;
-
-            // Fallback to text
-            const text = root.innerText || root.textContent || '';
-            return text;
+            return text.trim();
           };
 
           const finalHtml = extractContent(targetEl);
