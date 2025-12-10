@@ -133,6 +133,24 @@ const App: React.FC = () => {
 
   // Input mode: manual or import
   const [inputMode, setInputMode] = useState<'manual' | 'import'>('manual');
+  const [importMappingCount, setImportMappingCount] = useState<number>(0);
+
+  // Get visible input variables based on input mode
+  const getVisibleInputVariables = () => {
+    if (inputMode === 'manual') {
+      // Manual mode: show basic variables
+      return ['input', 'input1', 'input2', 'input3'];
+    } else {
+      // Import mode: show based on mapping count (up to 20)
+      if (importMappingCount === 0) return ['input'];
+
+      const vars = ['input'];
+      for (let i = 1; i < Math.min(importMappingCount, 20); i++) {
+        vars.push(`input${i}`);
+      }
+      return vars;
+    }
+  };
 
   // --- Init ---
   useEffect(() => {
@@ -2077,8 +2095,8 @@ const App: React.FC = () => {
                                      placeholder="Nhập template... Click biến bên dưới để insert"
                                   />
                                   <div className="mt-2 flex flex-wrap gap-1">
-                                     {/* Input variables: input, input1, input2, ..., input9 */}
-                                     {['input', 'input1', 'input2', 'input3', 'input4', 'input5', 'input6', 'input7', 'input8', 'input9'].map((inputVar) => {
+                                     {/* Input variables: dynamic based on mode */}
+                                     {getVisibleInputVariables().map((inputVar) => {
                                        const varName = `{{${inputVar}}}`;
                                        return (
                                          <button
@@ -2532,6 +2550,7 @@ const App: React.FC = () => {
                     setQueue(prev => [...prev, ...items]);
                   }}
                   currentWorkflowId={currentWorkflowId || undefined}
+                  onMappingChange={(count) => setImportMappingCount(count)}
                 />
               )}
               

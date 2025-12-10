@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, X, FileSpreadsheet, CheckCircle2, AlertTriangle, ArrowRight, Link2, Loader2, Plus } from 'lucide-react';
+import { Upload, X, FileSpreadsheet, CheckCircle2, AlertTriangle, ArrowRight, Link2, Loader2, Plus, ChevronRight } from 'lucide-react';
 import { parseFile, ParsedData, fetchGoogleSheet } from '../services/parseFileService';
 import { QueueItem, Status, WorkflowStep } from '../types';
 
@@ -7,6 +7,7 @@ interface ImportInputProps {
   steps: WorkflowStep[];
   onAddToQueue: (items: QueueItem[]) => void;
   currentWorkflowId?: string;
+  onMappingChange?: (mappedCount: number) => void;
 }
 
 interface ColumnMapping {
@@ -15,7 +16,7 @@ interface ColumnMapping {
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
 
-export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, currentWorkflowId }) => {
+export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, currentWorkflowId, onMappingChange }) => {
   const [importMode, setImportMode] = useState<'file' | 'googlesheet'>('file');
   const [file, setFile] = useState<File | null>(null);
   const [googleSheetUrl, setGoogleSheetUrl] = useState<string>('');
@@ -48,7 +49,9 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
     if (result.success && result.data) {
       setParsedData(result.data);
       if (result.data.headers.length > 0) {
-        setMapping({ input: result.data.headers[0] });
+        const initialMapping = { input: result.data.headers[0] };
+        setMapping(initialMapping);
+        onMappingChange?.(1);
       }
     } else {
       setError(result.error || 'Unknown error');
@@ -61,6 +64,8 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
     setParsedData(null);
     setError('');
     setMapping({});
+    setVisibleInputCount(4);
+    onMappingChange?.(0);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -84,7 +89,9 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
     if (result.success && result.data) {
       setParsedData(result.data);
       if (result.data.headers.length > 0) {
-        setMapping({ input: result.data.headers[0] });
+        const initialMapping = { input: result.data.headers[0] };
+        setMapping(initialMapping);
+        onMappingChange?.(1);
       }
     } else {
       setError(result.error || 'Unknown error');
@@ -96,13 +103,35 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
     setParsedData(null);
     setError('');
     setMapping({});
+    setVisibleInputCount(4);
+    onMappingChange?.(0);
   };
 
-  const handleMappingChange = (inputVar: string, column: string) => {
-    setMapping(prev => ({
-      ...prev,
-      [inputVar]: column
-    }));
+  const handleMappingChangeInternal = (inputVar: string, column: string) => {
+    setMapping(prev => {
+      const newMapping = { ...prev };
+      if (column === '') {
+        delete newMapping[inputVar];
+      } else {
+        newMapping[inputVar] = column;
+      }
+      onMappingChange?.(Object.keys(newMapping).length);
+      return newMapping;
+    });
+  };
+
+  const handleRemoveInput = (inputVar: string) => {
+    // Remove from mapping
+    setMapping(prev => {
+      const newMapping = { ...prev };
+      delete newMapping[inputVar];
+      onMappingChange?.(Object.keys(newMapping).length);
+      return newMapping;
+    });
+    // Decrease visible count
+    if (visibleInputCount > 4) {
+      setVisibleInputCount(prev => prev - 1);
+    }
   };
 
   const handleAddToQueue = () => {
@@ -141,48 +170,72 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
     }
   };
 
+  const getSampleValues = (inputVar: string): string[] => {
+    if (!parsedData || !mapping[inputVar]) return [];
+    const column = mapping[inputVar];
+    return parsedData.rows.slice(0, 3).map(row => row[column] || '-');
+  };
+
   const inputVariables = getVisibleInputVariables();
+  const currentStep = !parsedData ? 1 : 2;
 
   return (
     <div className="space-y-3">
-      {/* Import Mode Switcher */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => {
-            setImportMode('file');
-            handleClearGoogleSheet();
-          }}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-all rounded ${
-            importMode === 'file'
-              ? 'bg-blue-50 text-blue-600 border border-blue-200'
-              : 'text-slate-600 hover:bg-slate-50 border border-transparent'
-          }`}
-        >
-          <Upload className="w-3.5 h-3.5" />
-          <span>Upload File</span>
-        </button>
-        <button
-          onClick={() => {
-            setImportMode('googlesheet');
-            handleRemoveFile();
-          }}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-all rounded ${
-            importMode === 'googlesheet'
-              ? 'bg-blue-50 text-blue-600 border border-blue-200'
-              : 'text-slate-600 hover:bg-slate-50 border border-transparent'
-          }`}
-        >
-          <Link2 className="w-3.5 h-3.5" />
-          <span>Google Sheet</span>
-        </button>
+      {/* Stepper */}
+      <div className="flex items-center gap-2 text-xs">
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${currentStep === 1 ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'bg-green-50 text-green-600 border border-green-200'}`}>
+          <div className={`w-5 h-5 rounded-full flex items-center justify-center ${currentStep === 1 ? 'bg-blue-600 text-white' : 'bg-green-600 text-white'}`}>
+            {currentStep === 1 ? '1' : <CheckCircle2 className="w-3 h-3" />}
+          </div>
+          <span className="font-medium">Import</span>
+        </div>
+        <ChevronRight className="w-4 h-4 text-slate-400" />
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${currentStep === 2 ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'bg-slate-100 text-slate-400 border border-slate-200'}`}>
+          <div className={`w-5 h-5 rounded-full flex items-center justify-center ${currentStep === 2 ? 'bg-blue-600 text-white' : 'bg-slate-300 text-white'}`}>
+            2
+          </div>
+          <span className="font-medium">Mapping</span>
+        </div>
       </div>
 
-      {/* 2-Column Layout */}
-      <div className="grid grid-cols-2 gap-3">
-        {/* Left Column: File/Google Sheet Input */}
-        <div className="space-y-2">
+      {/* Step 1: Import */}
+      {currentStep === 1 && (
+        <div className="space-y-3">
+          {/* Mode Switcher */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                setImportMode('file');
+                handleClearGoogleSheet();
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-all rounded ${
+                importMode === 'file'
+                  ? 'bg-blue-50 text-blue-600 border border-blue-200'
+                  : 'text-slate-600 hover:bg-slate-50 border border-transparent'
+              }`}
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Upload File</span>
+            </button>
+            <button
+              onClick={() => {
+                setImportMode('googlesheet');
+                handleRemoveFile();
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-all rounded ${
+                importMode === 'googlesheet'
+                  ? 'bg-blue-50 text-blue-600 border border-blue-200'
+                  : 'text-slate-600 hover:bg-slate-50 border border-transparent'
+              }`}
+            >
+              <Link2 className="w-3.5 h-3.5" />
+              <span>Google Sheet</span>
+            </button>
+          </div>
+
+          {/* Import Area */}
           {importMode === 'file' ? (
-            <div className="border border-slate-300 rounded-lg p-4">
+            <div className="border border-slate-300 rounded-lg p-6">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -193,43 +246,42 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
               />
 
               {!file ? (
-                <label htmlFor="file-upload" className="flex flex-col items-center justify-center cursor-pointer py-2">
-                  <Upload className="w-8 h-8 text-slate-400 mb-2" />
-                  <p className="text-xs font-medium text-slate-700">Click để chọn file</p>
-                  <p className="text-[10px] text-slate-500">CSV, XLSX, XLS</p>
+                <label htmlFor="file-upload" className="flex flex-col items-center justify-center cursor-pointer py-4">
+                  <Upload className="w-12 h-12 text-slate-400 mb-3" />
+                  <p className="text-sm font-medium text-slate-700">Click để chọn file</p>
+                  <p className="text-xs text-slate-500 mt-1">CSV, XLSX, XLS (có tiêu đề cột)</p>
                 </label>
               ) : (
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileSpreadsheet className="w-6 h-6 text-green-500" />
+                  <div className="flex items-center gap-3">
+                    <FileSpreadsheet className="w-8 h-8 text-green-500" />
                     <div>
-                      <p className="text-xs font-medium text-slate-700">{file.name}</p>
-                      <p className="text-[10px] text-slate-500">
+                      <p className="text-sm font-medium text-slate-700">{file.name}</p>
+                      <p className="text-xs text-slate-500">
                         {(file.size / 1024).toFixed(1)} KB
-                        {parsedData && ` • ${parsedData.rows.length} dòng`}
                       </p>
                     </div>
                   </div>
-                  <button onClick={handleRemoveFile} className="p-1 hover:bg-slate-100 rounded">
-                    <X className="w-4 h-4 text-slate-500" />
+                  <button onClick={handleRemoveFile} className="p-2 hover:bg-slate-100 rounded-lg">
+                    <X className="w-5 h-5 text-slate-500" />
                   </button>
                 </div>
               )}
             </div>
           ) : (
-            <div className="border border-slate-300 rounded-lg p-4 space-y-2">
-              <div className="flex items-center gap-2 mb-2">
-                <Link2 className="w-4 h-4 text-slate-400" />
-                <p className="text-xs font-medium text-slate-700">Google Sheet URL</p>
+            <div className="border border-slate-300 rounded-lg p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Link2 className="w-5 h-5 text-slate-400" />
+                <p className="text-sm font-medium text-slate-700">Google Sheet URL</p>
               </div>
 
-              <div className="flex gap-1">
+              <div className="flex gap-2">
                 <input
                   type="text"
                   value={googleSheetUrl}
                   onChange={(e) => setGoogleSheetUrl(e.target.value)}
                   placeholder="https://docs.google.com/spreadsheets/d/..."
-                  className="flex-1 px-2 py-1.5 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && googleSheetUrl.trim()) {
                       handleLoadGoogleSheet();
@@ -239,109 +291,173 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
                 <button
                   onClick={handleLoadGoogleSheet}
                   disabled={!googleSheetUrl.trim() || isLoadingSheet}
-                  className="px-2 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {isLoadingSheet ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Đang tải...</span>
+                    </>
                   ) : (
-                    <Upload className="w-3.5 h-3.5" />
+                    <>
+                      <Upload className="w-4 h-4" />
+                      <span>Tải dữ liệu</span>
+                    </>
                   )}
                 </button>
               </div>
 
-              {parsedData && (
-                <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded">
-                  <CheckCircle2 className="w-4 h-4 text-green-500" />
-                  <p className="text-[10px] text-green-700">
-                    {parsedData.rows.length} dòng • {parsedData.headers.length} cột
-                  </p>
-                  <button onClick={handleClearGoogleSheet} className="ml-auto p-0.5 hover:bg-green-100 rounded">
-                    <X className="w-3 h-3 text-green-600" />
-                  </button>
-                </div>
-              )}
-
-              <p className="text-[10px] text-slate-500 italic">
-                💡 Sheet phải được chia sẻ công khai
+              <p className="text-xs text-slate-500 italic">
+                💡 Sheet phải được chia sẻ công khai hoặc "Anyone with the link can view"
               </p>
             </div>
           )}
 
           {/* Error Message */}
           {error && (
-            <div className="flex items-start gap-2 p-2 bg-red-50 border border-red-200 rounded">
-              <AlertTriangle className="w-3.5 h-3.5 text-red-500 mt-0.5 flex-shrink-0" />
-              <p className="text-[10px] text-red-700">{error}</p>
+            <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-red-700">{error}</p>
             </div>
           )}
         </div>
+      )}
 
-        {/* Right Column: Mapping */}
-        {parsedData && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between pb-1 border-b border-slate-200">
-              <div className="flex items-center gap-1">
-                <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
-                <h3 className="text-xs font-semibold text-slate-700">Mapping</h3>
+      {/* Step 2: Mapping */}
+      {currentStep === 2 && parsedData && (
+        <div className="space-y-3">
+          {/* Data Info */}
+          <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-green-500" />
+              <div>
+                <p className="text-sm font-medium text-green-700">
+                  {parsedData.rows.length} dòng • {parsedData.headers.length} cột
+                </p>
+                <p className="text-xs text-green-600">
+                  {importMode === 'file' ? file?.name : 'Google Sheet'}
+                </p>
               </div>
             </div>
-
-            <div className="space-y-1.5 max-h-32 overflow-y-auto">
-              {inputVariables.map(inputVar => (
-                <div key={inputVar} className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 bg-blue-50 border border-blue-200 rounded text-[10px] font-mono text-blue-700 w-16 flex-shrink-0 text-center">
-                    {`{{${inputVar}}}`}
-                    {inputVar === 'input' && <span className="text-red-500">*</span>}
-                  </span>
-
-                  <ArrowRight className="w-3 h-3 text-slate-400 flex-shrink-0" />
-
-                  <select
-                    value={mapping[inputVar] || ''}
-                    onChange={(e) => handleMappingChange(inputVar, e.target.value)}
-                    className="flex-1 px-2 py-0.5 border border-slate-300 rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  >
-                    <option value="">-- Không map --</option>
-                    {parsedData.headers.map(header => (
-                      <option key={header} value={header}>
-                        {header}
-                      </option>
-                    ))}
-                  </select>
-
-                  {mapping[inputVar] && (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {visibleInputCount < 10 && (
-              <button
-                onClick={() => setVisibleInputCount(prev => prev + 1)}
-                className="text-[10px] text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium"
-              >
-                <Plus className="w-3 h-3" />
-                <span>Thêm input variable</span>
-              </button>
-            )}
-
-            <p className="text-[10px] text-slate-500 italic pt-1">
-              * <code className="font-mono text-blue-600">{'{{input}}'}</code> bắt buộc
-            </p>
-
-            {/* Add to Queue Button */}
             <button
-              onClick={handleAddToQueue}
-              disabled={!mapping.input}
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg text-xs font-medium hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
+              onClick={() => {
+                if (importMode === 'file') {
+                  handleRemoveFile();
+                } else {
+                  handleClearGoogleSheet();
+                }
+              }}
+              className="text-xs text-green-700 hover:text-green-800 font-medium underline"
             >
-              <Upload className="w-3.5 h-3.5" />
-              <span>Thêm {parsedData.rows.length} dòng vào Queue</span>
+              Đổi file khác
             </button>
           </div>
-        )}
-      </div>
+
+          {/* Mapping Table */}
+          <div className="border border-slate-200 rounded-lg overflow-hidden">
+            <div className="bg-slate-50 px-3 py-2 border-b border-slate-200">
+              <h3 className="text-sm font-semibold text-slate-700">Mapping Cột</h3>
+            </div>
+
+            {/* Table Header */}
+            <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs font-medium text-slate-600">
+              <div className="col-span-2">Biến</div>
+              <div className="col-span-3">Trường dữ liệu</div>
+              <div className="col-span-7">Data Preview (3 dòng đầu)</div>
+            </div>
+
+            {/* Table Body */}
+            <div className="max-h-64 overflow-y-auto">
+              {inputVariables.map(inputVar => {
+                const sampleValues = getSampleValues(inputVar);
+                return (
+                  <div key={inputVar} className="grid grid-cols-12 gap-2 px-3 py-2 border-b border-slate-100 hover:bg-slate-50 text-xs items-center">
+                    <div className="col-span-2 flex items-center gap-1">
+                      <span className="px-2 py-1 bg-blue-50 border border-blue-200 rounded font-mono text-blue-700">
+                        {`{{${inputVar}}}`}
+                      </span>
+                      {inputVar === 'input' && <span className="text-red-500">*</span>}
+                      {inputVar !== 'input' && visibleInputCount > 4 && (
+                        <button
+                          onClick={() => handleRemoveInput(inputVar)}
+                          className="p-0.5 hover:bg-red-100 rounded"
+                          title="Xóa biến này"
+                        >
+                          <X className="w-3 h-3 text-red-500" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="col-span-3">
+                      <select
+                        value={mapping[inputVar] || ''}
+                        onChange={(e) => handleMappingChangeInternal(inputVar, e.target.value)}
+                        className="w-full px-2 py-1 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="">-- Không map --</option>
+                        {parsedData.headers.map(header => (
+                          <option key={header} value={header}>
+                            {header}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="col-span-7 flex gap-2">
+                      {sampleValues.length > 0 ? (
+                        sampleValues.map((value, idx) => (
+                          <div key={idx} className="flex-1 px-2 py-1 bg-slate-50 border border-slate-200 rounded text-[10px] text-slate-700 truncate" title={value}>
+                            {value}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="flex-1 px-2 py-1 text-slate-400 italic">
+                          Chưa map
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Add More Button */}
+            {visibleInputCount < 20 && (
+              <div className="px-3 py-2 bg-slate-50 border-t border-slate-200">
+                <button
+                  onClick={() => setVisibleInputCount(prev => prev + 1)}
+                  className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Thêm input variable (tối đa input20)</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          <p className="text-xs text-slate-500 italic">
+            * <code className="font-mono text-blue-600">{'{{input}}'}</code> là bắt buộc
+          </p>
+
+          {/* Error Message */}
+          {error && (
+            <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-red-700">{error}</p>
+            </div>
+          )}
+
+          {/* Add to Queue Button */}
+          <button
+            onClick={handleAddToQueue}
+            disabled={!mapping.input}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg text-sm font-medium hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
+          >
+            <Upload className="w-4 h-4" />
+            <span>Thêm {parsedData.rows.length} dòng vào Queue</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 };
