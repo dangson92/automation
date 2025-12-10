@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, X, FileSpreadsheet, CheckCircle2, AlertTriangle, ArrowRight, Link2, Loader2, Plus, ChevronRight } from 'lucide-react';
+import { Upload, X, FileSpreadsheet, CheckCircle2, AlertTriangle, ArrowRight, Link2, Loader2, Plus, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { parseFile, ParsedData, fetchGoogleSheet } from '../services/parseFileService';
 import { QueueItem, Status, WorkflowStep } from '../types';
 
@@ -8,6 +8,7 @@ interface ImportInputProps {
   onAddToQueue: (items: QueueItem[]) => void;
   currentWorkflowId?: string;
   onMappingChange?: (mappedCount: number) => void;
+  queue?: QueueItem[];
 }
 
 interface ColumnMapping {
@@ -16,7 +17,7 @@ interface ColumnMapping {
 
 const generateId = () => Math.random().toString(36).substring(2, 11);
 
-export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, currentWorkflowId, onMappingChange }) => {
+export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, currentWorkflowId, onMappingChange, queue = [] }) => {
   const [importMode, setImportMode] = useState<'file' | 'googlesheet'>('file');
   const [file, setFile] = useState<File | null>(null);
   const [googleSheetUrl, setGoogleSheetUrl] = useState<string>('');
@@ -26,6 +27,7 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
   const [mapping, setMapping] = useState<ColumnMapping>({});
   const [visibleInputCount, setVisibleInputCount] = useState<number>(3); // Start with input, input1, input2
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false); // Collapse after adding to queue
+  const [isMappingCollapsed, setIsMappingCollapsed] = useState<boolean>(false); // Collapse mapping area
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const getVisibleInputVariables = () => {
@@ -137,13 +139,49 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
     }
   };
 
+  const getUniqueItemsCount = (): number => {
+    if (!parsedData || !mapping.input) return 0;
+
+    // Get existing inputs in queue
+    const existingInputs = new Set(
+      queue.map(item => {
+        // Use mappedInputs.input if available, otherwise use originalPrompt
+        const queueItem = item as QueueItem & { mappedInputs?: Record<string, string> };
+        return queueItem.mappedInputs?.input || item.originalPrompt;
+      })
+    );
+
+    // Count unique new items
+    let uniqueCount = 0;
+    parsedData.rows.forEach(row => {
+      const column = mapping.input;
+      const inputValue = row[column] || '';
+      if (!existingInputs.has(inputValue)) {
+        existingInputs.add(inputValue);
+        uniqueCount++;
+      }
+    });
+
+    return uniqueCount;
+  };
+
   const handleAddToQueue = () => {
     if (!parsedData || !mapping.input) {
       setError('Bạn phải map ít nhất cột "{{input}}" trước khi thêm vào queue');
       return;
     }
 
-    const newItems: QueueItem[] = parsedData.rows.map(row => {
+    // Get existing inputs in queue to filter duplicates
+    const existingInputs = new Set(
+      queue.map(item => {
+        const queueItem = item as QueueItem & { mappedInputs?: Record<string, string> };
+        return queueItem.mappedInputs?.input || item.originalPrompt;
+      })
+    );
+
+    const newItems: QueueItem[] = [];
+
+    parsedData.rows.forEach(row => {
       const mappedData: Record<string, string> = {};
       Object.keys(mapping).forEach(inputVar => {
         const column = mapping[inputVar];
@@ -153,16 +191,20 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
       // Use the mapped {{input}} value as originalPrompt for display
       const primaryInput = mappedData['input'] || '';
 
-      return {
-        id: generateId(),
-        originalPrompt: primaryInput,
-        status: Status.QUEUED,
-        currentStepIndex: 0,
-        results: [],
-        logs: [],
-        workflowId: currentWorkflowId || undefined,
-        mappedInputs: mappedData
-      } as QueueItem & { mappedInputs?: Record<string, string> };
+      // Filter duplicates based on {{input}} value
+      if (!existingInputs.has(primaryInput)) {
+        existingInputs.add(primaryInput);
+        newItems.push({
+          id: generateId(),
+          originalPrompt: primaryInput,
+          status: Status.QUEUED,
+          currentStepIndex: 0,
+          results: [],
+          logs: [],
+          workflowId: currentWorkflowId || undefined,
+          mappedInputs: mappedData
+        } as QueueItem & { mappedInputs?: Record<string, string> });
+      }
     });
 
     onAddToQueue(newItems);
@@ -355,12 +397,25 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
           <div className="border border-slate-200 rounded-lg overflow-hidden">
             {/* Table Header with Data Info */}
             <div className="bg-slate-50 px-3 py-2 border-b border-slate-200 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-700">
-                Mapping {parsedData.headers.length} cột với {parsedData.rows.length} dòng
-                <span className="text-slate-500 font-normal ml-1">
-                  ({importMode === 'file' ? file?.name : 'Google Sheet'})
-                </span>
-              </h3>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsMappingCollapsed(!isMappingCollapsed)}
+                  className="p-1 hover:bg-slate-200 rounded transition-colors"
+                  title={isMappingCollapsed ? "Expand" : "Collapse"}
+                >
+                  {isMappingCollapsed ? (
+                    <ChevronDown className="w-4 h-4 text-slate-600" />
+                  ) : (
+                    <ChevronUp className="w-4 h-4 text-slate-600" />
+                  )}
+                </button>
+                <h3 className="text-sm font-semibold text-slate-700">
+                  Mapping {parsedData.headers.length} cột với {parsedData.rows.length} dòng
+                  <span className="text-slate-500 font-normal ml-1">
+                    ({importMode === 'file' ? file?.name : 'Google Sheet'})
+                  </span>
+                </h3>
+              </div>
               <button
                 onClick={() => {
                   if (importMode === 'file') {
@@ -375,79 +430,83 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
               </button>
             </div>
 
-            {/* Column Headers */}
-            <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs font-medium text-slate-600">
-              <div className="col-span-2">Biến</div>
-              <div className="col-span-3">Trường dữ liệu</div>
-              <div className="col-span-7">Data Preview (3 dòng đầu)</div>
-            </div>
+            {!isMappingCollapsed && (
+              <>
+                {/* Column Headers */}
+                <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs font-medium text-slate-600">
+                  <div className="col-span-2">Biến</div>
+                  <div className="col-span-3">Trường dữ liệu</div>
+                  <div className="col-span-7">Data Preview (3 dòng đầu)</div>
+                </div>
 
-            {/* Table Body - Fixed Height with Scroll */}
-            <div style={{ height: '192px', overflowY: 'auto' }}>
-              {inputVariables.map(inputVar => {
-                const sampleValues = getSampleValues(inputVar);
-                return (
-                  <div key={inputVar} className="grid grid-cols-12 gap-2 px-3 py-2 border-b border-slate-100 hover:bg-slate-50 text-xs items-center">
-                    <div className="col-span-2 flex items-center gap-1">
-                      <span className="px-2 py-1 bg-blue-50 border border-blue-200 rounded font-mono text-blue-700">
-                        {`{{${inputVar}}}`}
-                      </span>
-                      {inputVar === 'input' && <span className="text-red-500">*</span>}
-                      {inputVar !== 'input' && visibleInputCount > 3 && (
-                        <button
-                          onClick={() => handleRemoveInput(inputVar)}
-                          className="p-0.5 hover:bg-red-100 rounded"
-                          title="Xóa biến này"
-                        >
-                          <X className="w-3 h-3 text-red-500" />
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="col-span-3">
-                      <select
-                        value={mapping[inputVar] || ''}
-                        onChange={(e) => handleMappingChangeInternal(inputVar, e.target.value)}
-                        className="w-full px-2 py-1 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      >
-                        <option value="">-- Không map --</option>
-                        {parsedData.headers.map(header => (
-                          <option key={header} value={header}>
-                            {header}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="col-span-7 flex gap-2">
-                      {sampleValues.length > 0 ? (
-                        sampleValues.map((value, idx) => (
-                          <div key={idx} className="flex-1 px-2 py-1 bg-slate-50 border border-slate-200 rounded text-[10px] text-slate-700 truncate" title={value}>
-                            {value}
-                          </div>
-                        ))
-                      ) : (
-                        <div className="flex-1 px-2 py-1 text-slate-400 italic">
-                          Chưa map
+                {/* Table Body - Fixed Height with Scroll */}
+                <div style={{ height: '192px', overflowY: 'auto' }}>
+                  {inputVariables.map(inputVar => {
+                    const sampleValues = getSampleValues(inputVar);
+                    return (
+                      <div key={inputVar} className="grid grid-cols-12 gap-2 px-3 py-2 border-b border-slate-100 hover:bg-slate-50 text-xs items-center">
+                        <div className="col-span-2 flex items-center gap-1">
+                          <span className="px-2 py-1 bg-blue-50 border border-blue-200 rounded font-mono text-blue-700">
+                            {`{{${inputVar}}}`}
+                          </span>
+                          {inputVar === 'input' && <span className="text-red-500">*</span>}
+                          {inputVar !== 'input' && visibleInputCount > 3 && (
+                            <button
+                              onClick={() => handleRemoveInput(inputVar)}
+                              className="p-0.5 hover:bg-red-100 rounded"
+                              title="Xóa biến này"
+                            >
+                              <X className="w-3 h-3 text-red-500" />
+                            </button>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
 
-            {/* Add More Button */}
-            {visibleInputCount < 20 && (
-              <div className="px-3 py-2 bg-slate-50 border-t border-slate-200">
-                <button
-                  onClick={() => setVisibleInputCount(prev => prev + 1)}
-                  className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Thêm input variable (tối đa input20)</span>
-                </button>
-              </div>
+                        <div className="col-span-3">
+                          <select
+                            value={mapping[inputVar] || ''}
+                            onChange={(e) => handleMappingChangeInternal(inputVar, e.target.value)}
+                            className="w-full px-2 py-1 border border-slate-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          >
+                            <option value="">-- Không map --</option>
+                            {parsedData.headers.map(header => (
+                              <option key={header} value={header}>
+                                {header}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="col-span-7 flex gap-2">
+                          {sampleValues.length > 0 ? (
+                            sampleValues.map((value, idx) => (
+                              <div key={idx} className="flex-1 px-2 py-1 bg-slate-50 border border-slate-200 rounded text-[10px] text-slate-700 truncate" title={value}>
+                                {value}
+                              </div>
+                            ))
+                          ) : (
+                            <div className="flex-1 px-2 py-1 text-slate-400 italic">
+                              Chưa map
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Add More Button */}
+                {visibleInputCount < 20 && (
+                  <div className="px-3 py-2 bg-slate-50 border-t border-slate-200">
+                    <button
+                      onClick={() => setVisibleInputCount(prev => prev + 1)}
+                      className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Thêm input variable (tối đa input20)</span>
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
 
@@ -467,10 +526,10 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
           <button
             onClick={handleAddToQueue}
             disabled={!mapping.input}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg text-sm font-medium hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
           >
             <Upload className="w-4 h-4" />
-            <span>Thêm {parsedData.rows.length} dòng vào Queue</span>
+            <span>Update {getUniqueItemsCount()} dòng vào Queue</span>
           </button>
         </div>
       )}
