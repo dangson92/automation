@@ -24,7 +24,7 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
   const [parsedData, setParsedData] = useState<ParsedData | null>(null);
   const [error, setError] = useState<string>('');
   const [mapping, setMapping] = useState<ColumnMapping>({});
-  const [visibleInputCount, setVisibleInputCount] = useState<number>(4);
+  const [visibleInputCount, setVisibleInputCount] = useState<number>(3); // Start with input, input1, input2
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const getVisibleInputVariables = () => {
@@ -64,7 +64,7 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
     setParsedData(null);
     setError('');
     setMapping({});
-    setVisibleInputCount(4);
+    setVisibleInputCount(3);
     onMappingChange?.(0);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -103,7 +103,7 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
     setParsedData(null);
     setError('');
     setMapping({});
-    setVisibleInputCount(4);
+    setVisibleInputCount(3);
     onMappingChange?.(0);
   };
 
@@ -129,7 +129,7 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
       return newMapping;
     });
     // Decrease visible count
-    if (visibleInputCount > 4) {
+    if (visibleInputCount > 3) {
       setVisibleInputCount(prev => prev - 1);
     }
   };
@@ -180,7 +180,7 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
   const currentStep = !parsedData ? 1 : 2;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" style={{ minHeight: '280px' }}>
       {/* Stepper */}
       <div className="flex items-center gap-2 text-xs">
         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg ${currentStep === 1 ? 'bg-blue-50 text-blue-600 border border-blue-200' : 'bg-green-50 text-green-600 border border-green-200'}`}>
@@ -233,85 +233,87 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
             </button>
           </div>
 
-          {/* Import Area */}
-          {importMode === 'file' ? (
-            <div className="border border-slate-300 rounded-lg p-6">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                onChange={handleFileSelect}
-                className="hidden"
-                id="file-upload"
-              />
+          {/* Import Area - Fixed Height */}
+          <div style={{ minHeight: '180px' }}>
+            {importMode === 'file' ? (
+              <div className="border border-slate-300 rounded-lg p-6 h-full flex items-center justify-center">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                  id="file-upload"
+                />
 
-              {!file ? (
-                <label htmlFor="file-upload" className="flex flex-col items-center justify-center cursor-pointer py-4">
-                  <Upload className="w-12 h-12 text-slate-400 mb-3" />
-                  <p className="text-sm font-medium text-slate-700">Click để chọn file</p>
-                  <p className="text-xs text-slate-500 mt-1">CSV, XLSX, XLS (có tiêu đề cột)</p>
-                </label>
-              ) : (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <FileSpreadsheet className="w-8 h-8 text-green-500" />
-                    <div>
-                      <p className="text-sm font-medium text-slate-700">{file.name}</p>
-                      <p className="text-xs text-slate-500">
-                        {(file.size / 1024).toFixed(1)} KB
-                      </p>
+                {!file ? (
+                  <label htmlFor="file-upload" className="flex flex-col items-center justify-center cursor-pointer w-full">
+                    <Upload className="w-12 h-12 text-slate-400 mb-3" />
+                    <p className="text-sm font-medium text-slate-700">Click để chọn file</p>
+                    <p className="text-xs text-slate-500 mt-1">CSV, XLSX, XLS (có tiêu đề cột)</p>
+                  </label>
+                ) : (
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-3">
+                      <FileSpreadsheet className="w-8 h-8 text-green-500" />
+                      <div>
+                        <p className="text-sm font-medium text-slate-700">{file.name}</p>
+                        <p className="text-xs text-slate-500">
+                          {(file.size / 1024).toFixed(1)} KB
+                        </p>
+                      </div>
                     </div>
+                    <button onClick={handleRemoveFile} className="p-2 hover:bg-slate-100 rounded-lg">
+                      <X className="w-5 h-5 text-slate-500" />
+                    </button>
                   </div>
-                  <button onClick={handleRemoveFile} className="p-2 hover:bg-slate-100 rounded-lg">
-                    <X className="w-5 h-5 text-slate-500" />
+                )}
+              </div>
+            ) : (
+              <div className="border border-slate-300 rounded-lg p-4 space-y-3 h-full flex flex-col justify-center">
+                <div className="flex items-center gap-2">
+                  <Link2 className="w-5 h-5 text-slate-400" />
+                  <p className="text-sm font-medium text-slate-700">Google Sheet URL</p>
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={googleSheetUrl}
+                    onChange={(e) => setGoogleSheetUrl(e.target.value)}
+                    placeholder="https://docs.google.com/spreadsheets/d/..."
+                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && googleSheetUrl.trim()) {
+                        handleLoadGoogleSheet();
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={handleLoadGoogleSheet}
+                    disabled={!googleSheetUrl.trim() || isLoadingSheet}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {isLoadingSheet ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Đang tải...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4" />
+                        <span>Tải dữ liệu</span>
+                      </>
+                    )}
                   </button>
                 </div>
-              )}
-            </div>
-          ) : (
-            <div className="border border-slate-300 rounded-lg p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <Link2 className="w-5 h-5 text-slate-400" />
-                <p className="text-sm font-medium text-slate-700">Google Sheet URL</p>
-              </div>
 
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={googleSheetUrl}
-                  onChange={(e) => setGoogleSheetUrl(e.target.value)}
-                  placeholder="https://docs.google.com/spreadsheets/d/..."
-                  className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && googleSheetUrl.trim()) {
-                      handleLoadGoogleSheet();
-                    }
-                  }}
-                />
-                <button
-                  onClick={handleLoadGoogleSheet}
-                  disabled={!googleSheetUrl.trim() || isLoadingSheet}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {isLoadingSheet ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Đang tải...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4" />
-                      <span>Tải dữ liệu</span>
-                    </>
-                  )}
-                </button>
+                <p className="text-xs text-slate-500 italic">
+                  💡 Sheet phải được chia sẻ công khai hoặc "Anyone with the link can view"
+                </p>
               </div>
-
-              <p className="text-xs text-slate-500 italic">
-                💡 Sheet phải được chia sẻ công khai hoặc "Anyone with the link can view"
-              </p>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Error Message */}
           {error && (
@@ -326,48 +328,39 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
       {/* Step 2: Mapping */}
       {currentStep === 2 && parsedData && (
         <div className="space-y-3">
-          {/* Data Info */}
-          <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-green-500" />
-              <div>
-                <p className="text-sm font-medium text-green-700">
-                  {parsedData.rows.length} dòng • {parsedData.headers.length} cột
-                </p>
-                <p className="text-xs text-green-600">
-                  {importMode === 'file' ? file?.name : 'Google Sheet'}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                if (importMode === 'file') {
-                  handleRemoveFile();
-                } else {
-                  handleClearGoogleSheet();
-                }
-              }}
-              className="text-xs text-green-700 hover:text-green-800 font-medium underline"
-            >
-              Đổi file khác
-            </button>
-          </div>
-
           {/* Mapping Table */}
           <div className="border border-slate-200 rounded-lg overflow-hidden">
-            <div className="bg-slate-50 px-3 py-2 border-b border-slate-200">
-              <h3 className="text-sm font-semibold text-slate-700">Mapping Cột</h3>
+            {/* Table Header with Data Info */}
+            <div className="bg-slate-50 px-3 py-2 border-b border-slate-200 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-700">
+                Mapping {parsedData.headers.length} cột với {parsedData.rows.length} dòng
+                <span className="text-slate-500 font-normal ml-1">
+                  ({importMode === 'file' ? file?.name : 'Google Sheet'})
+                </span>
+              </h3>
+              <button
+                onClick={() => {
+                  if (importMode === 'file') {
+                    handleRemoveFile();
+                  } else {
+                    handleClearGoogleSheet();
+                  }
+                }}
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium underline"
+              >
+                Đổi file khác
+              </button>
             </div>
 
-            {/* Table Header */}
+            {/* Column Headers */}
             <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs font-medium text-slate-600">
               <div className="col-span-2">Biến</div>
               <div className="col-span-3">Trường dữ liệu</div>
               <div className="col-span-7">Data Preview (3 dòng đầu)</div>
             </div>
 
-            {/* Table Body */}
-            <div className="max-h-64 overflow-y-auto">
+            {/* Table Body - Fixed Height with Scroll */}
+            <div className="max-h-48 overflow-y-auto">
               {inputVariables.map(inputVar => {
                 const sampleValues = getSampleValues(inputVar);
                 return (
@@ -377,7 +370,7 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
                         {`{{${inputVar}}}`}
                       </span>
                       {inputVar === 'input' && <span className="text-red-500">*</span>}
-                      {inputVar !== 'input' && visibleInputCount > 4 && (
+                      {inputVar !== 'input' && visibleInputCount > 3 && (
                         <button
                           onClick={() => handleRemoveInput(inputVar)}
                           className="p-0.5 hover:bg-red-100 rounded"
