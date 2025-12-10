@@ -51,7 +51,7 @@ const isElectron = () => {
   return !!window.electronAPI;
 };
 
-// Clean HTML to remove unnecessary attributes like data-start, data-end, etc.
+// Clean HTML to remove unnecessary attributes and keep only content
 const cleanHTML = (html: string): string => {
   if (!html) return html;
 
@@ -59,15 +59,19 @@ const cleanHTML = (html: string): string => {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
 
-  // Remove unwanted attributes from all elements
+  // Remove ALL attributes from all elements except href for links
   const allElements = doc.querySelectorAll('*');
   allElements.forEach(element => {
-    // List of attributes to remove
-    const attrsToRemove = ['data-start', 'data-end', 'data-is-last-node', 'data-is-only-node', 'data-id', 'data-index'];
-    attrsToRemove.forEach(attr => {
-      if (element.hasAttribute(attr)) {
-        element.removeAttribute(attr);
+    // Get all attribute names
+    const attrs = Array.from(element.attributes).map(attr => attr.name);
+
+    // Remove all attributes except href for <a> tags
+    attrs.forEach(attrName => {
+      if (element.tagName.toLowerCase() === 'a' && attrName === 'href') {
+        // Keep href for links
+        return;
       }
+      element.removeAttribute(attrName);
     });
   });
 
@@ -1071,6 +1075,19 @@ const App: React.FC = () => {
                                   const clone = root.cloneNode(true) as HTMLElement;
                                   // Remove wrapper divs, buttons, and other UI elements
                                   clone.querySelectorAll('[aria-label="Copy"], button, svg, div.sticky, pre, .rounded-2xl, [class*="corner-"]').forEach(el => el.remove());
+
+                                  // Clean all HTML attributes except href for links
+                                  const allElements = clone.querySelectorAll('*');
+                                  allElements.forEach(element => {
+                                    const attrs = Array.from(element.attributes).map(attr => attr.name);
+                                    attrs.forEach(attrName => {
+                                      if (element.tagName.toLowerCase() === 'a' && attrName === 'href') {
+                                        return; // Keep href for links
+                                      }
+                                      element.removeAttribute(attrName);
+                                    });
+                                  });
+
                                   const html = clone.innerHTML || '';
                                   if (html && html.trim().length > 0) return html;
 
