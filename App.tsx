@@ -161,6 +161,16 @@ const App: React.FC = () => {
         try {
           const result = await window.electronAPI.loadQueue();
           if (result.success && result.data) {
+            console.log('[DEBUG] Loaded queue items:', result.data.length);
+            const itemsWithMappedInputs = result.data.filter((item: any) => item.mappedInputs);
+            console.log('[DEBUG] Items with mappedInputs:', itemsWithMappedInputs.length);
+            if (itemsWithMappedInputs.length > 0) {
+              console.log('[DEBUG] Sample item:', {
+                id: itemsWithMappedInputs[0].id,
+                originalPrompt: itemsWithMappedInputs[0].originalPrompt,
+                mappedInputs: itemsWithMappedInputs[0].mappedInputs
+              });
+            }
             setQueue(result.data);
           }
         } catch (err) {
