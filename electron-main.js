@@ -748,10 +748,11 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
           window.scrollTo(0, document.body.scrollHeight);
           await sleep(500);
 
-          // For ChatGPT: specifically target the markdown content of the last assistant message
+          // Platform-specific output extraction
           let targetEl;
+
           if (urlLower.includes('chatgpt.com') || urlLower.includes('chat.openai.com')) {
-            // Find the last assistant message container
+            // ChatGPT: Find the last assistant message container
             const assistantMessages = document.querySelectorAll('div[data-message-author-role="assistant"]');
             if (assistantMessages.length === 0) {
               console.error('No assistant messages found');
@@ -773,6 +774,31 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
 
             targetEl = markdownEl;
             console.log('Using ChatGPT element, innerHTML length:', targetEl.innerHTML.length);
+
+          } else if (urlLower.includes('claude.ai')) {
+            // Claude: Find the last assistant message
+            // Try multiple selectors for Claude's message structure
+            const claudeMessages = document.querySelectorAll('div[data-testid*="message"], div[data-is-streaming], div.font-claude-message');
+
+            if (claudeMessages.length === 0) {
+              console.error('No Claude messages found');
+              return { error: 'Không tìm thấy tin nhắn trả lời từ Claude' };
+            }
+
+            // Get the last message (most recent response)
+            let lastMessage = claudeMessages[claudeMessages.length - 1];
+
+            // Try to find the content container within the message
+            let contentEl = lastMessage.querySelector('div.prose, div[class*="markdown"], div[class*="content"]');
+
+            if (!contentEl) {
+              console.log('No content container found, using entire message element');
+              contentEl = lastMessage;
+            }
+
+            targetEl = contentEl;
+            console.log('Using Claude element, innerHTML length:', targetEl.innerHTML.length);
+
           } else {
             // For other platforms, use the original logic
             const outEls = document.querySelectorAll(outputSel);
