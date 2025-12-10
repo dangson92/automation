@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Play, Pause, Plus, Trash2, Download, Save, UserCog, ChevronDown, Bot, Layout, Zap, X, Globe, HelpCircle, ArrowRight, Link as LinkIcon, Target, CheckCircle2, Cpu, FileText, Box, Layers, AlertTriangle, Monitor, Eye, EyeOff, Settings, Image as ImageIcon, RotateCcw, Search, Filter, Upload, Edit3 } from 'lucide-react';
+import { Play, Pause, Plus, Trash2, Download, Save, UserCog, ChevronDown, Bot, Layout, Zap, X, Globe, HelpCircle, ArrowRight, Link as LinkIcon, Target, CheckCircle2, Cpu, FileText, Box, Layers, AlertTriangle, Monitor, Eye, EyeOff, Settings, Image as ImageIcon, RotateCcw, Search, Filter, Upload, Edit3, Edit } from 'lucide-react';
 import { Status, QueueItem, AppConfig, SavedAgent, AutomationConfig, WorkflowStep, StepResult } from './types';
 import { OutputEditor } from './components/OutputEditor';
 import { generateContent } from './services/geminiService';
@@ -357,7 +357,8 @@ const App: React.FC = () => {
       currentStepIndex: 0,
       results: [],
       logs: [],
-      workflowId: currentWorkflowId || undefined // Save current workflow ID
+      workflowId: currentWorkflowId || undefined, // Save current workflow ID
+      source: 'manual' as const
     }));
 
     setQueue(prev => [...prev, ...newItems]);
@@ -2666,7 +2667,9 @@ const App: React.FC = () => {
                      </th>
                      <th className="p-2 text-xs font-semibold text-slate-500 border-b border-slate-200 w-10 sticky left-[32px] bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">#</th>
                      <th className="p-2 text-xs font-semibold text-slate-500 border-b border-slate-200 w-24 min-w-[96px] sticky left-[72px] bg-slate-100 z-30 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Trạng thái</th>
-                     <th className={`p-2 text-xs font-semibold text-slate-500 border-b border-slate-200 ${inputColWidth} sticky left-[168px] bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]`}>Input Gốc</th>
+                     <th className="p-2 text-xs font-semibold text-slate-500 border-b border-slate-200 w-32 min-w-[128px] sticky left-[168px] bg-slate-100 z-30 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Workflow</th>
+                     <th className="p-2 text-xs font-semibold text-slate-500 border-b border-slate-200 w-28 min-w-[112px] sticky left-[300px] bg-slate-100 z-30 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Nguồn</th>
+                     <th className={`p-2 text-xs font-semibold text-slate-500 border-b border-slate-200 ${inputColWidth} sticky left-[412px] bg-slate-100 z-30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]`}>Input Gốc</th>
                      {config.steps.map((step) => (
                         <th key={step.id} className={`p-2 text-xs font-semibold text-slate-500 border-b border-slate-200 ${stepColWidth}`}>
                            <div className="flex items-center space-x-1">
@@ -2680,7 +2683,7 @@ const App: React.FC = () => {
                  <tbody className="bg-white divide-y divide-slate-100">
                     {filteredQueue.length === 0 && (
                       <tr>
-                        <td colSpan={5 + config.steps.length} className="p-10 text-center text-slate-400">
+                        <td colSpan={7 + config.steps.length} className="p-10 text-center text-slate-400">
                            <Layout className="w-12 h-12 mx-auto mb-3 opacity-20" />
                            <p>{queue.length === 0 ? 'Danh sách trống.' : 'Không tìm thấy kết quả phù hợp.'}</p>
                         </td>
@@ -2712,7 +2715,29 @@ const App: React.FC = () => {
                              )}
                            </div>
                         </td>
-                        <td className={`p-2 text-sm text-slate-800 font-medium ${inputColWidth} align-top cursor-pointer sticky left-[168px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isSelected ? 'bg-indigo-50' : 'bg-white group-hover:bg-indigo-50/50'}`} onClick={() => setSelectedItemId(item.id)}>
+                        <td className={`p-2 text-xs text-slate-600 sticky left-[168px] z-10 cursor-pointer shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isSelected ? 'bg-indigo-50' : 'bg-white group-hover:bg-indigo-50/50'}`} onClick={() => setSelectedItemId(item.id)}>
+                           <div className="truncate">
+                             {item.workflowId ? savedAgents.find(a => a.id === item.workflowId)?.name || '-' : '-'}
+                           </div>
+                        </td>
+                        <td className={`p-2 text-xs sticky left-[300px] z-10 cursor-pointer shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isSelected ? 'bg-indigo-50' : 'bg-white group-hover:bg-indigo-50/50'}`} onClick={() => setSelectedItemId(item.id)}>
+                           <div className="flex items-center gap-1">
+                             {item.source === 'import' ? (
+                               <>
+                                 <Upload className="w-3 h-3 text-blue-500" />
+                                 <span className="text-xs text-slate-600 truncate" title={item.fileName}>
+                                   {item.fileName || 'Import'}
+                                 </span>
+                               </>
+                             ) : (
+                               <>
+                                 <Edit className="w-3 h-3 text-green-500" />
+                                 <span className="text-xs text-slate-600">Thủ công</span>
+                               </>
+                             )}
+                           </div>
+                        </td>
+                        <td className={`p-2 text-sm text-slate-800 font-medium ${inputColWidth} align-top cursor-pointer sticky left-[412px] z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)] ${isSelected ? 'bg-indigo-50' : 'bg-white group-hover:bg-indigo-50/50'}`} onClick={() => setSelectedItemId(item.id)}>
                            <div className={`break-words whitespace-normal ${inputColClamp}`}>{item.originalPrompt}</div>
                         </td>
 
