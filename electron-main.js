@@ -826,7 +826,24 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
             const clone = root.cloneNode(true);
 
             // Remove UI elements only (buttons, copy icons, etc.) - keep all content
-            clone.querySelectorAll('[aria-label="Copy"], button, svg:not([data-icon]), div.sticky, .rounded-2xl, [class*="corner-"]').forEach(el => el.remove());
+            // IMPORTANT: Do NOT remove content containers inside <pre> tags
+            const elementsToRemove = clone.querySelectorAll('[aria-label="Copy"], button, svg:not([data-icon]), div.sticky');
+            elementsToRemove.forEach(el => {
+              // Skip if element is inside a <pre> tag (it might be part of code content)
+              const isInsidePre = el.closest('pre');
+              if (!isInsidePre) {
+                el.remove();
+              }
+            });
+
+            // Remove decorative UI containers that are NOT inside <pre> tags
+            const uiContainers = clone.querySelectorAll('.rounded-2xl, [class*="corner-"]');
+            uiContainers.forEach(el => {
+              const isInsidePre = el.closest('pre');
+              if (!isInsidePre) {
+                el.remove();
+              }
+            });
 
             // Remove Perplexity-specific citation elements
             clone.querySelectorAll('.citation, .citation-nbsp, span.citation, span[class*="citation"], a[rel*="nofollow noopener"], span[class*="rounded-badge"]').forEach(el => el.remove());
