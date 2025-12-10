@@ -2551,6 +2551,7 @@ const App: React.FC = () => {
                   }}
                   currentWorkflowId={currentWorkflowId || undefined}
                   onMappingChange={(count) => setImportMappingCount(count)}
+                  queue={queue}
                 />
               )}
               
