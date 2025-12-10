@@ -1061,29 +1061,52 @@ const App: React.FC = () => {
                                    }
                                 }
                                 const extractContent = (root: HTMLElement) => {
-                                  // If content is in a code block, extract text only (removes all HTML/syntax highlighting)
+                                  // If content is in a code block, extract text and wrap in clean pre/code
                                   const codeEl = root.querySelector('pre code, code') as HTMLElement | null;
                                   if (codeEl) {
                                     const textContent = codeEl.textContent || codeEl.innerText || '';
                                     // Only use code content if it's substantial
                                     if (textContent.trim().length > 20) {
-                                      return textContent;
+                                      // Escape HTML entities and return as clean structure
+                                      const escaped = textContent
+                                        .replace(/&/g, '&amp;')
+                                        .replace(/</g, '&lt;')
+                                        .replace(/>/g, '&gt;')
+                                        .replace(/"/g, '&quot;')
+                                        .replace(/'/g, '&#039;');
+                                      return `<pre><code>${escaped}</code></pre>`;
                                     }
                                   }
 
                                   // Otherwise extract HTML, removing UI elements
                                   const clone = root.cloneNode(true) as HTMLElement;
-                                  // Remove only UI elements (buttons, icons), not wrapper divs that contain content
-                                  clone.querySelectorAll('[aria-label="Copy"], [aria-label="Sao chép"], button, svg, div.sticky, div.absolute').forEach(el => el.remove());
+                                  // Remove only UI elements (buttons, icons, copy toolbars), keep content divs
+                                  clone.querySelectorAll('[aria-label="Copy"], [aria-label="Sao chép"], button, svg, div.sticky').forEach(el => el.remove());
 
                                   // Clean up ChatGPT-style pre blocks: extract code directly
                                   clone.querySelectorAll('pre').forEach(pre => {
                                     const codeEl = pre.querySelector('code');
-                                    if (codeEl) {
-                                      // Clear pre and add only code element
-                                      const codeContent = codeEl.cloneNode(true);
-                                      pre.innerHTML = '';
-                                      pre.appendChild(codeContent);
+                                    if (codeEl && codeEl.innerHTML && codeEl.innerHTML.trim().length > 0) {
+                                      // Create new clean pre with only code content
+                                      const newPre = document.createElement('pre');
+                                      const newCode = document.createElement('code');
+                                      newCode.innerHTML = codeEl.innerHTML;
+                                      newPre.appendChild(newCode);
+                                      if (pre.parentNode) {
+                                        pre.parentNode.replaceChild(newPre, pre);
+                                      }
+                                    } else {
+                                      // If no code element found or empty, extract text content
+                                      const textContent = pre.textContent || '';
+                                      if (textContent.trim().length > 0) {
+                                        const newPre = document.createElement('pre');
+                                        const newCode = document.createElement('code');
+                                        newCode.textContent = textContent.trim();
+                                        newPre.appendChild(newCode);
+                                        if (pre.parentNode) {
+                                          pre.parentNode.replaceChild(newPre, pre);
+                                        }
+                                      }
                                     }
                                   });
 
