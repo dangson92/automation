@@ -618,27 +618,24 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
             }
           }
 
-          console.log('Text value set to:', inputEl.value.substring(0, 50) + '...');
           console.log('Input element value length:', inputEl.value.length);
 
-          // Wait for React to process and enable submit button (longer delay for long prompts)
-          console.log('Waiting for submit button to be enabled...');
-          await sleep(2000); // Increased from 1000ms to 2000ms
+          // Wait briefly for React to process
+          await sleep(500);
 
-          // Verify submit button is enabled before clicking
+          // Quick check if submit button is ready (max 3 attempts)
           let waitAttempts = 0;
-          while (waitAttempts < 10) {
+          while (waitAttempts < 3) {
             const submitBtn = document.querySelector(submitSel);
             if (submitBtn && !submitBtn.disabled) {
-              console.log('Submit button is ready');
+              console.log('Submit button ready');
               break;
             }
-            console.log('Waiting for submit button to be enabled, attempt:', waitAttempts + 1);
-            await sleep(500);
+            await sleep(300);
             waitAttempts++;
           }
 
-          console.log('Text typed and verified, submitting...');
+          console.log('Submitting...');
 
           // 3. Submit - Try multiple methods
           let submitted = false;
@@ -744,63 +741,6 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
           console.log('Capturing output...');
           const urlLower = (window.location.href || '').toLowerCase();
 
-          // Scroll to bottom to trigger lazy rendering
-          // Try multiple scroll methods to ensure it works across different browsers/modes
-          console.log('Scrolling to load all content...');
-          const minScrollAttempts = 3;
-          const maxScrollAttempts = 20;
-          let lastScrollHeight = 0;
-          let currentScrollHeight = Math.max(
-            document.body.scrollHeight,
-            document.documentElement.scrollHeight
-          );
-          let scrollAttempts = 0;
-          let unchangedCount = 0;
-
-          while (scrollAttempts < maxScrollAttempts) {
-            lastScrollHeight = currentScrollHeight;
-
-            // Try multiple scroll methods for compatibility
-            const scrollTarget = Math.max(
-              document.body.scrollHeight,
-              document.documentElement.scrollHeight
-            );
-
-            // Method 1: window.scrollTo
-            window.scrollTo(0, scrollTarget);
-
-            // Method 2: document.documentElement.scrollTop
-            document.documentElement.scrollTop = scrollTarget;
-
-            // Method 3: document.body.scrollTop
-            document.body.scrollTop = scrollTarget;
-
-            // Method 4: Find and scroll main container
-            const mainContainer = document.querySelector('main, [role="main"], .main-content');
-            if (mainContainer) {
-              mainContainer.scrollTop = mainContainer.scrollHeight;
-            }
-
-            await sleep(1000);
-            currentScrollHeight = Math.max(
-              document.body.scrollHeight,
-              document.documentElement.scrollHeight
-            );
-            scrollAttempts++;
-            console.log('Scroll attempt', scrollAttempts, '- Height:', currentScrollHeight, 'Target:', scrollTarget);
-
-            if (lastScrollHeight === currentScrollHeight) {
-              unchangedCount++;
-              if (scrollAttempts >= minScrollAttempts && unchangedCount >= 2) {
-                break;
-              }
-            } else {
-              unchangedCount = 0;
-            }
-          }
-
-          console.log('Completed scrolling after', scrollAttempts, 'attempts');
-
           // Platform-specific output extraction
           let targetEl;
 
@@ -866,37 +806,6 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
               // Get the last assistant message (most recent response)
               lastMessage = assistantMessages[assistantMessages.length - 1];
             }
-
-            console.log('Selected message innerHTML length:', lastMessage.innerHTML.length);
-
-            // Scroll within the message container to load lazy content
-            console.log('Scrolling within message container...');
-            const minMsgScrollAttempts = 3;
-            const maxMsgScrollAttempts = 15;
-            let lastMsgScrollHeight = 0;
-            let currentMsgScrollHeight = lastMessage.scrollHeight;
-            let msgScrollAttempts = 0;
-            let msgUnchangedCount = 0;
-
-            while (msgScrollAttempts < maxMsgScrollAttempts) {
-              lastMsgScrollHeight = currentMsgScrollHeight;
-              lastMessage.scrollTop = lastMessage.scrollHeight;
-              await sleep(800);
-              currentMsgScrollHeight = lastMessage.scrollHeight;
-              msgScrollAttempts++;
-              console.log('Message scroll attempt', msgScrollAttempts, '- Height:', currentMsgScrollHeight);
-
-              if (lastMsgScrollHeight === currentMsgScrollHeight) {
-                msgUnchangedCount++;
-                if (msgScrollAttempts >= minMsgScrollAttempts && msgUnchangedCount >= 2) {
-                  break;
-                }
-              } else {
-                msgUnchangedCount = 0;
-              }
-            }
-
-            console.log('Completed message scrolling after', msgScrollAttempts, 'attempts');
 
             // Use the entire message element to capture all content
             // (don't try to find a specific content div, as content may be split across multiple divs)
