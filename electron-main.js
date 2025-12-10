@@ -741,23 +741,38 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
           console.log('Capturing output...');
           const urlLower = (window.location.href || '').toLowerCase();
 
-          // Scroll to bottom until page stops growing (lazy rendering complete)
+          // Scroll to bottom to trigger lazy rendering
+          // Strategy: scroll multiple times with delay regardless of height change
+          // to ensure lazy content gets loaded
           console.log('Scrolling to load all content...');
+          const minScrollAttempts = 3; // Scroll ít nhất 3 lần
+          const maxScrollAttempts = 20; // Tối đa 20 lần
           let lastScrollHeight = 0;
           let currentScrollHeight = document.body.scrollHeight;
           let scrollAttempts = 0;
-          const maxScrollAttempts = 20; // Timeout sau 20 lần để tránh vòng lặp vô hạn
+          let unchangedCount = 0; // Đếm số lần height không đổi liên tiếp
 
-          while (lastScrollHeight !== currentScrollHeight && scrollAttempts < maxScrollAttempts) {
+          while (scrollAttempts < maxScrollAttempts) {
             lastScrollHeight = currentScrollHeight;
             window.scrollTo(0, document.body.scrollHeight);
-            await sleep(800);
+            await sleep(1000); // Tăng delay để đợi lazy load
             currentScrollHeight = document.body.scrollHeight;
             scrollAttempts++;
             console.log('Scroll attempt', scrollAttempts, '- Height:', currentScrollHeight);
+
+            // Nếu height không đổi
+            if (lastScrollHeight === currentScrollHeight) {
+              unchangedCount++;
+              // Dừng nếu đã scroll tối thiểu và height không đổi 2 lần liên tiếp
+              if (scrollAttempts >= minScrollAttempts && unchangedCount >= 2) {
+                break;
+              }
+            } else {
+              unchangedCount = 0; // Reset nếu height có thay đổi
+            }
           }
 
-          console.log('Reached bottom of page after', scrollAttempts, 'attempts');
+          console.log('Completed scrolling after', scrollAttempts, 'attempts');
 
           // Platform-specific output extraction
           let targetEl;
@@ -829,21 +844,32 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
 
             // Scroll within the message container to load lazy content
             console.log('Scrolling within message container...');
+            const minMsgScrollAttempts = 3;
+            const maxMsgScrollAttempts = 15;
             let lastMsgScrollHeight = 0;
             let currentMsgScrollHeight = lastMessage.scrollHeight;
             let msgScrollAttempts = 0;
-            const maxMsgScrollAttempts = 10;
+            let msgUnchangedCount = 0;
 
-            while (lastMsgScrollHeight !== currentMsgScrollHeight && msgScrollAttempts < maxMsgScrollAttempts) {
+            while (msgScrollAttempts < maxMsgScrollAttempts) {
               lastMsgScrollHeight = currentMsgScrollHeight;
               lastMessage.scrollTop = lastMessage.scrollHeight;
-              await sleep(500);
+              await sleep(800);
               currentMsgScrollHeight = lastMessage.scrollHeight;
               msgScrollAttempts++;
               console.log('Message scroll attempt', msgScrollAttempts, '- Height:', currentMsgScrollHeight);
+
+              if (lastMsgScrollHeight === currentMsgScrollHeight) {
+                msgUnchangedCount++;
+                if (msgScrollAttempts >= minMsgScrollAttempts && msgUnchangedCount >= 2) {
+                  break;
+                }
+              } else {
+                msgUnchangedCount = 0;
+              }
             }
 
-            console.log('Reached bottom of message after', msgScrollAttempts, 'attempts');
+            console.log('Completed message scrolling after', msgScrollAttempts, 'attempts');
 
             // Use the entire message element to capture all content
             // (don't try to find a specific content div, as content may be split across multiple divs)
@@ -860,99 +886,16 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
             targetEl = outEls[outEls.length - 1];
           }
           const extractContent = (root) => {
-            // If content is in a code block, extract text only (removes all HTML/syntax highlighting)
-            const codeEl = root.querySelector('pre code, code');
-            if (codeEl) {
-              const textContent = codeEl.textContent || codeEl.innerText || '';
-              // Only use code content if it's substantial
-              if (textContent.trim().length > 20) {
-                return textContent;
-              }
-            }
-
             // Extract clean HTML for all platforms (ChatGPT, Perplexity, Claude, etc.)
             const clone = root.cloneNode(true);
 
-            // Remove wrapper divs, buttons, and other UI elements
-            clone.querySelectorAll('[aria-label="Copy"], button, svg, div.sticky, pre, .rounded-2xl, [class*="corner-"]').forEach(el => el.remove());
+            // Remove UI elements only (buttons, copy icons, etc.) - keep all content
+            clone.querySelectorAll('[aria-label="Copy"], button, svg:not([data-icon]), div.sticky, .rounded-2xl, [class*="corner-"]').forEach(el => el.remove());
 
             // Remove Perplexity-specific citation elements
             clone.querySelectorAll('.citation, .citation-nbsp, span.citation, span[class*="citation"], a[rel*="nofollow noopener"], span[class*="rounded-badge"]').forEach(el => el.remove());
 
-            // Remove Claude wrapper divs with specific classes
-            const claudeWrapperClasses = [
-              'progressive-markdown',
-              'standard-markdown',
-              'break-words',
-              'line-clamp-1',
-              'line-clamp-2',
-              'line-clamp-3',
-              'line-clamp-4',
-              'grid-cols-1',
-              'font-claude-response-body'
-            ];
-
-            // Build selector for Claude wrappers - only target DIV elements
-            const claudeWrapperSelectors = claudeWrapperClasses.map(cls => 'div[class*="' + cls + '"]').join(', ');
-
-            // Unwrap Claude wrapper elements (keep content, remove wrapper)
-            const unwrapElement = (el) => {
-              const parent = el.parentNode;
-              if (!parent) return;
-
-              // Move all children to parent before the wrapper element
-              while (el.firstChild) {
-                parent.insertBefore(el.firstChild, el);
-              }
-              // Remove the wrapper element
-              parent.removeChild(el);
-            };
-
-            // Repeatedly unwrap until no more wrappers found
-            let wrappers = clone.querySelectorAll(claudeWrapperSelectors);
-            while (wrappers.length > 0) {
-              // Convert to array and unwrap from innermost to outermost
-              Array.from(wrappers).reverse().forEach(wrapper => {
-                unwrapElement(wrapper);
-              });
-              wrappers = clone.querySelectorAll(claudeWrapperSelectors);
-            }
-
-            // Clean all attributes from remaining HTML tags to get clean content
-            const cleanAttributes = (element) => {
-              // Keep only basic HTML structure tags
-              const allowedTags = ['p', 'ul', 'ol', 'li', 'strong', 'em', 'b', 'i', 'br', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'a'];
-
-              // Process all child elements recursively
-              Array.from(element.children).forEach(child => {
-                const tagName = child.tagName.toLowerCase();
-
-                // If not an allowed tag, unwrap it (keep content but remove tag)
-                if (!allowedTags.includes(tagName)) {
-                  // Move children to parent before removing
-                  while (child.firstChild) {
-                    element.insertBefore(child.firstChild, child);
-                  }
-                  element.removeChild(child);
-                } else {
-                  // Remove all attributes except href for links
-                  const attrs = Array.from(child.attributes);
-                  attrs.forEach(attr => {
-                    if (tagName === 'a' && attr.name === 'href') {
-                      // Keep href for links
-                      return;
-                    }
-                    child.removeAttribute(attr.name);
-                  });
-
-                  // Recursively clean children
-                  cleanAttributes(child);
-                }
-              });
-            };
-
-            cleanAttributes(clone);
-
+            // Get innerHTML directly - keep all content and structure
             let html = clone.innerHTML || '';
 
             // If HTML contains encoded entities like &lt; &gt;, it means content is stored as text
