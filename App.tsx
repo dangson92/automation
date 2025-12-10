@@ -2077,25 +2077,33 @@ const App: React.FC = () => {
                                      placeholder="Nhập template... Click biến bên dưới để insert"
                                   />
                                   <div className="mt-2 flex flex-wrap gap-1">
-                                     <button
-                                       type="button"
-                                       onClick={() => {
-                                         const textarea = document.getElementById(`template-${step.id}`) as HTMLTextAreaElement;
-                                         if (textarea) {
-                                           const cursorPos = textarea.selectionStart;
-                                           const textBefore = step.template.substring(0, cursorPos);
-                                           const textAfter = step.template.substring(cursorPos);
-                                           handleUpdateStep(step.id, 'template', textBefore + '{{input}}' + textAfter);
-                                           setTimeout(() => {
-                                             textarea.focus();
-                                             textarea.setSelectionRange(cursorPos + 9, cursorPos + 9);
-                                           }, 0);
-                                         }
-                                       }}
-                                       className="text-[10px] bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded text-slate-700 font-mono cursor-pointer transition-colors"
-                                     >
-                                       {`{{input}}`}
-                                     </button>
+                                     {/* Input variables: input, input1, input2, ..., input9 */}
+                                     {['input', 'input1', 'input2', 'input3', 'input4', 'input5', 'input6', 'input7', 'input8', 'input9'].map((inputVar) => {
+                                       const varName = `{{${inputVar}}}`;
+                                       return (
+                                         <button
+                                           key={inputVar}
+                                           type="button"
+                                           onClick={() => {
+                                             const textarea = document.getElementById(`template-${step.id}`) as HTMLTextAreaElement;
+                                             if (textarea) {
+                                               const cursorPos = textarea.selectionStart;
+                                               const textBefore = step.template.substring(0, cursorPos);
+                                               const textAfter = step.template.substring(cursorPos);
+                                               handleUpdateStep(step.id, 'template', textBefore + varName + textAfter);
+                                               setTimeout(() => {
+                                                 textarea.focus();
+                                                 textarea.setSelectionRange(cursorPos + varName.length, cursorPos + varName.length);
+                                               }, 0);
+                                             }
+                                           }}
+                                           className="text-[10px] bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded text-slate-700 font-mono cursor-pointer transition-colors"
+                                           title={inputVar === 'input' ? 'Input chính từ queue' : `Input phụ ${inputVar.replace('input', '')}`}
+                                         >
+                                           {varName}
+                                         </button>
+                                       );
+                                     })}
                                      {config.steps.slice(0, index).map((prevStep, prevIdx) => (
                                        <button
                                          key={prevStep.id}
