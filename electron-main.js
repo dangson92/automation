@@ -741,10 +741,18 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
           console.log('Capturing output...');
           const urlLower = (window.location.href || '').toLowerCase();
 
-          // For ChatGPT: specifically target the markdown content of the last assistant message
+          // Scroll to bottom to ensure all content is loaded (lazy rendering)
+          console.log('Scrolling to load all content...');
+          window.scrollTo(0, document.body.scrollHeight);
+          await sleep(1000);
+          window.scrollTo(0, document.body.scrollHeight);
+          await sleep(500);
+
+          // Platform-specific output extraction
           let targetEl;
+
           if (urlLower.includes('chatgpt.com') || urlLower.includes('chat.openai.com')) {
-            // Find the last assistant message container
+            // ChatGPT: Find the last assistant message container
             const assistantMessages = document.querySelectorAll('div[data-message-author-role="assistant"]');
             if (assistantMessages.length === 0) {
               console.error('No assistant messages found');
@@ -752,16 +760,45 @@ ipcMain.handle('automation-run', async (event, { url, selectors, useCustomSelect
             }
 
             const lastAssistantMsg = assistantMessages[assistantMessages.length - 1];
-            // Find the markdown content inside it
-            const markdownEl = lastAssistantMsg.querySelector('.markdown');
+
+            // Try to find markdown content - use the entire message container if markdown not found
+            let markdownEl = lastAssistantMsg.querySelector('.markdown');
 
             if (!markdownEl) {
-              console.error('No markdown element found in assistant message');
-              return { error: 'Không tìm thấy nội dung markdown trong tin nhắn' };
+              console.log('No .markdown element found, using entire message container');
+              // Try alternative selectors for content
+              markdownEl = lastAssistantMsg.querySelector('[class*="markdown"]') ||
+                           lastAssistantMsg.querySelector('[data-message-id]') ||
+                           lastAssistantMsg;
             }
 
             targetEl = markdownEl;
-            console.log('Using ChatGPT markdown element');
+            console.log('Using ChatGPT element, innerHTML length:', targetEl.innerHTML.length);
+
+          } else if (urlLower.includes('claude.ai')) {
+            // Claude: Find the last assistant message
+            // Try multiple selectors for Claude's message structure
+            const claudeMessages = document.querySelectorAll('div[data-testid*="message"], div[data-is-streaming], div.font-claude-message');
+
+            if (claudeMessages.length === 0) {
+              console.error('No Claude messages found');
+              return { error: 'Không tìm thấy tin nhắn trả lời từ Claude' };
+            }
+
+            // Get the last message (most recent response)
+            let lastMessage = claudeMessages[claudeMessages.length - 1];
+
+            // Try to find the content container within the message
+            let contentEl = lastMessage.querySelector('div.prose, div[class*="markdown"], div[class*="content"]');
+
+            if (!contentEl) {
+              console.log('No content container found, using entire message element');
+              contentEl = lastMessage;
+            }
+
+            targetEl = contentEl;
+            console.log('Using Claude element, innerHTML length:', targetEl.innerHTML.length);
+
           } else {
             // For other platforms, use the original logic
             const outEls = document.querySelectorAll(outputSel);
