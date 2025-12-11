@@ -335,6 +335,22 @@ const App: React.FC = () => {
     localStorage.setItem('promptflow_custom_login_urls', JSON.stringify(customLoginUrls));
   }, [customLoginUrls]);
 
+  // Auto-save workflow changes when editing a loaded workflow
+  useEffect(() => {
+    if (currentWorkflowId) {
+      // Only auto-save if we have a loaded workflow
+      setSavedAgents(prev => prev.map(agent =>
+        agent.id === currentWorkflowId
+          ? {
+              ...agent,
+              config: { ...config },
+              automationConfig: { ...automationConfig }
+            }
+          : agent
+      ));
+    }
+  }, [config, automationConfig, currentWorkflowId]);
+
   useEffect(() => {
     if (mode === 'ELECTRON' && window.electronAPI) {
       // Save to file in Electron mode
