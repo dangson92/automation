@@ -51,66 +51,132 @@ const isElectron = () => {
   return !!window.electronAPI;
 };
 
-// Clean HTML - strip Claude UI wrappers and remove dangerous XSS attributes
-const cleanHTML = (html: string): string => {
-  if (!html) return html;
+// Helper function to decode HTML entities
+const decodeHTMLEntities = (text: string): string => {
+  const textArea = document.createElement('textarea');
+  textArea.innerHTML = text;
+  return textArea.value;
+};
 
-  // Use DOMParser to parse HTML
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
+// Helper function to remove all attributes except allowed ones
+const cleanAttributes = (element: Element): void => {
+  const allowedAttributes = ['href', 'src', 'alt', 'colspan', 'rowspan', 'target', 'rel'];
+  const attrs = Array.from(element.attributes).map(attr => attr.name);
 
-  // Strip Claude UI wrapper divs (e.g., <div class="standard-markdown ...">)
-  // Look for wrapper elements with Claude-specific classes
-  const claudeWrapperClasses = ['standard-markdown', 'font-claude', 'claude-response'];
-  const bodyChildren = Array.from(doc.body.children);
+  attrs.forEach(attrName => {
+    const attrLower = attrName.toLowerCase();
 
-  // If there's a single wrapper div with Claude classes, extract its innerHTML
-  if (bodyChildren.length === 1 && bodyChildren[0].tagName.toLowerCase() === 'div') {
-    const wrapperDiv = bodyChildren[0] as HTMLElement;
-    const divClasses = wrapperDiv.className || '';
-
-    // Check if this div has Claude UI classes
-    const hasClaudeWrapperClass = claudeWrapperClasses.some(claudeClass =>
-      divClasses.includes(claudeClass)
-    );
-
-    if (hasClaudeWrapperClass) {
-      // Replace body content with wrapper's innerHTML
-      doc.body.innerHTML = wrapperDiv.innerHTML;
+    // Remove if not in allowed list
+    if (!allowedAttributes.includes(attrLower)) {
+      element.removeAttribute(attrName);
+      return;
     }
+
+    // Remove href/src with javascript:
+    if (attrLower === 'href' || attrLower === 'src') {
+      const attrValue = element.getAttribute(attrName);
+      if (attrValue && attrValue.toLowerCase().trim().startsWith('javascript:')) {
+        element.removeAttribute(attrName);
+      }
+    }
+  });
+};
+
+// Kiểu 2: Xử lý HTML trong code block (syntax highlight)
+const normalizeClaudeCodeBlock = (htmlString: string): string => {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(htmlString, 'text/html');
+
+  // Find <pre><code class="language-html">...</code></pre>
+  const codeBlock = doc.querySelector('pre code.language-html, pre code[class*="code-block"]');
+
+  if (!codeBlock) {
+    // Không tìm thấy code block, fallback
+    return htmlString;
   }
 
-  // Remove Claude UI classes and unnecessary attributes from all elements
-  // Keep only useful attributes: href, src, alt, colspan, rowspan, target, rel
-  const allowedAttributes = ['href', 'src', 'alt', 'colspan', 'rowspan', 'target', 'rel'];
+  // Lấy text content (bỏ tất cả span, token highlighting)
+  let encodedHTML = codeBlock.textContent || '';
 
-  const allElements = doc.querySelectorAll('*');
-  allElements.forEach(element => {
-    // Get all attribute names
-    const attrs = Array.from(element.attributes).map(attr => attr.name);
+  // Decode HTML entities: &lt;p&gt; -> <p>
+  const decodedHTML = decodeHTMLEntities(encodedHTML);
 
-    // Remove attributes that are not in allowed list or are dangerous
-    attrs.forEach(attrName => {
-      const attrLower = attrName.toLowerCase();
+  // Parse decoded HTML
+  const contentDoc = parser.parseFromString(decodedHTML, 'text/html');
 
-      // Check if attribute is allowed
-      if (!allowedAttributes.includes(attrLower)) {
-        element.removeAttribute(attrName);
-        return;
-      }
-
-      // Even for allowed attributes, remove href/src with javascript:
-      if (attrLower === 'href' || attrLower === 'src') {
-        const attrValue = element.getAttribute(attrName);
-        if (attrValue && attrValue.toLowerCase().trim().startsWith('javascript:')) {
-          element.removeAttribute(attrName);
-        }
-      }
-    });
+  // Remove [imageX] paragraphs
+  const imageParagraphs = contentDoc.querySelectorAll('p');
+  imageParagraphs.forEach(p => {
+    const text = p.textContent?.trim() || '';
+    if (/^\[image\d+\]$/.test(text)) {
+      p.remove();
+    }
   });
 
-  // Return cleaned HTML
-  return doc.body.innerHTML;
+  // Clean all attributes
+  const allElements = contentDoc.querySelectorAll('*');
+  allElements.forEach(element => cleanAttributes(element));
+
+  return contentDoc.body.innerHTML;
+};
+
+// Kiểu 1: Xử lý HTML bọc trong div.standard-markdown
+const normalizeClaudeHtml = (htmlString: string): string => {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(htmlString, 'text/html');
+
+  // Find wrapper div with class "standard-markdown"
+  let contentDiv = doc.querySelector('div.standard-markdown, div[class*="standard-markdown"]');
+
+  if (!contentDiv) {
+    // Không tìm thấy wrapper, dùng body luôn
+    contentDiv = doc.body;
+  }
+
+  // Get innerHTML from wrapper
+  let innerContent = (contentDiv as HTMLElement).innerHTML;
+
+  // Decode HTML entities trong nội dung
+  // Tìm các đoạn text dạng &lt;p&gt;...&lt;/p&gt; và decode chúng
+  innerContent = innerContent.replace(/&lt;([^&]+)&gt;/g, (match, tag) => {
+    return `<${tag}>`;
+  });
+
+  // Parse lại sau khi decode
+  const contentDoc = parser.parseFromString(innerContent, 'text/html');
+
+  // Remove [imageX] paragraphs (có class font-claude-response-body)
+  const imageParagraphs = contentDoc.querySelectorAll('p.font-claude-response-body, p[class*="font-claude"]');
+  imageParagraphs.forEach(p => {
+    const text = p.textContent?.trim() || '';
+    if (/^\[image\d+\]$/.test(text)) {
+      p.remove();
+    }
+  });
+
+  // Clean all attributes
+  const allElements = contentDoc.querySelectorAll('*');
+  allElements.forEach(element => cleanAttributes(element));
+
+  return contentDoc.body.innerHTML;
+};
+
+// Hàm chính: Auto-detect kiểu dữ liệu và xử lý
+const normalizeClaudeContent = (rawString: string): string => {
+  if (!rawString) return rawString;
+
+  // Detect kiểu 1: có class="standard-markdown"
+  if (rawString.includes('standard-markdown')) {
+    return normalizeClaudeHtml(rawString);
+  }
+
+  // Detect kiểu 2: có <pre> + language-html hoặc code-block
+  if (rawString.includes('language-html') || rawString.includes('code-block__code')) {
+    return normalizeClaudeCodeBlock(rawString);
+  }
+
+  // Fallback: cố gắng xử lý như kiểu 1
+  return normalizeClaudeHtml(rawString);
 };
 
 const App: React.FC = () => {
@@ -1558,8 +1624,8 @@ const App: React.FC = () => {
              stepResponse = await generateContent(promptToSend, config);
           }
 
-          // Clean HTML to remove unnecessary attributes
-          stepResponse = cleanHTML(stepResponse);
+          // Normalize Claude output (auto-detect type 1 or 2)
+          stepResponse = normalizeClaudeContent(stepResponse);
 
           // Process image generation if enabled
           let imageData: any[] = [];
