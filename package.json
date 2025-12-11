@@ -1,5 +1,5 @@
 {
-  "name": "promptflow-desktop",
+  "name": "sondang-auto-content",
   "version": "1.0.0",
   "main": "electron-main.js",
   "scripts": {
@@ -9,8 +9,8 @@
     "start": "npm run build && electron ."
   },
   "build": {
-    "appId": "com.promptflow.desktop",
-    "productName": "PromptFlow Desktop",
+    "appId": "com.sondang.autocontent",
+    "productName": "Sơn Đặng Auto Content",
     "directories": {
       "output": "release"
     },

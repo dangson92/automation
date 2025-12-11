@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "PromptFlow Automation",
+  "name": "Sơn Đặng Auto Content",
   "version": "1.1",
   "description": "Tự động hóa gửi prompt và lấy kết quả từ website bất kỳ mà không cần server.",
   "permissions": [
@@ -17,7 +17,7 @@
     "default_path": "index.html"
   },
   "action": {
-    "default_title": "Mở PromptFlow"
+    "default_title": "Mở Sơn Đặng Auto Content"
   },
   "background": {
     "service_worker": "background.js" 
