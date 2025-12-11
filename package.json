@@ -9,7 +9,7 @@
     "start": "npm run build && electron ."
   },
   "build": {
-    "appId": "com.sondang.autocontent",
+    "appId": "com.promptflow.desktop",
     "productName": "Sơn Đặng Auto Content",
     "directories": {
       "output": "release"
