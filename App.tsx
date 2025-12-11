@@ -142,8 +142,8 @@ const App: React.FC = () => {
   // Get visible input variables based on input mode
   const getVisibleInputVariables = () => {
     if (inputMode === 'manual') {
-      // Manual mode: show basic variables
-      return ['input', 'input1', 'input2', 'input3'];
+      // Manual mode: show only {{input}} variable
+      return ['input'];
     } else {
       // Import mode: show based on mapping count (up to 20)
       if (importMappingCount === 0) return ['input'];
@@ -441,7 +441,9 @@ const App: React.FC = () => {
         results: [],
         finalResponse: undefined,
         error: undefined,
-        logs: []
+        logs: [],
+        startTime: undefined,
+        endTime: undefined
       };
     }));
   };
@@ -470,7 +472,9 @@ const App: React.FC = () => {
         results: [],
         finalResponse: undefined,
         error: undefined,
-        logs: []
+        logs: [],
+        startTime: undefined,
+        endTime: undefined
       };
     }));
 
