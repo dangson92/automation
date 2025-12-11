@@ -94,24 +94,18 @@
       /* Smooth transition for step content */
       .step-content-transition {
         transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
-                    opacity 0.25s ease-in-out,
-                    transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                    opacity 0.25s ease-in-out;
         overflow: hidden;
-        width: 100%;
       }
 
       .step-content-expanded {
         max-height: 2000px;
         opacity: 1;
-        transform: translateY(0) scaleY(1);
-        transform-origin: top;
       }
 
       .step-content-collapsed {
         max-height: 0;
         opacity: 0;
-        transform: translateY(0) scaleY(0.95);
-        transform-origin: top;
       }
 
       /* HTML Content Styling for preview */
