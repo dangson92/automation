@@ -2163,7 +2163,7 @@ const App: React.FC = () => {
                          </div>
 
                          <div className={`step-content-transition border-t border-slate-50 ${expandedStepId === step.id ? 'step-content-expanded' : 'step-content-collapsed'}`}>
-                            <div className={`${expandedStepId === step.id ? 'p-3 pt-0' : ''}`}>
+                            <div className="p-3 pt-0">
                                <div className="mb-3 mt-2">
                                   <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Tên bước</label>
                                   <input 
