@@ -241,7 +241,9 @@ const App: React.FC = () => {
   useEffect(() => {
     if (scrollToStepId) {
       setTimeout(() => {
-        const element = document.getElementById(`step-detail-${scrollToStepId}`);
+        // Try to scroll to output first, fallback to step detail
+        const outputElement = document.getElementById(`step-output-${scrollToStepId}`);
+        const element = outputElement || document.getElementById(`step-detail-${scrollToStepId}`);
         if (element) {
           element.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
@@ -3051,7 +3053,7 @@ const App: React.FC = () => {
                             </div>
 
                             {/* Response Received */}
-                            <div>
+                            <div id={`step-output-${result.stepId}`} className="scroll-mt-4">
                               <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Kết quả</div>
                               <div className="text-sm text-slate-800 bg-white border border-indigo-100 p-3 rounded-lg shadow-sm html-content" dangerouslySetInnerHTML={{ __html: result.response }} />
 
