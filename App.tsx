@@ -990,8 +990,18 @@ const App: React.FC = () => {
       if (agent.automationConfig) setAutomationConfig(agent.automationConfig);
       if (agent.config.steps.length > 0) setExpandedStepId(agent.config.steps[0].id);
       setCurrentWorkflowId(agentId); // Track which workflow is loaded
-      setAgentNameInput(agent.name); // Pre-fill the name for updates
+      setSelectedWorkflowToUpdate(''); // Clear update selection
     }
+  };
+
+  const handleDeselectWorkflow = () => {
+    setCurrentWorkflowId(null);
+    setSelectedWorkflowToUpdate('');
+    setAgentNameInput("");
+    // Reset config to default
+    setConfig(DEFAULT_CONFIG);
+    setAutomationConfig(DEFAULT_AUTOMATION);
+    if (DEFAULT_CONFIG.steps.length > 0) setExpandedStepId(DEFAULT_CONFIG.steps[0].id);
   };
 
   const handleDeleteAgent = (agentId: string, e: React.MouseEvent) => {
@@ -2482,30 +2492,38 @@ const App: React.FC = () => {
           {/* Saved Workflows List */}
           {savedAgents.length > 0 && (
             <div className="pt-4 border-t border-slate-100">
-              <h3 className="text-xs font-bold uppercase text-slate-500 tracking-wider mb-3 flex items-center">
-                <Layers className="w-3 h-3 mr-1" />
-                Workflows đã lưu
+              <h3 className="text-xs font-bold uppercase text-slate-500 tracking-wider mb-2">
+                Workflow đã lưu ({savedAgents.length} workflow{savedAgents.length > 1 ? 's' : ''})
               </h3>
-              <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
+              <div className="space-y-1 max-h-64 overflow-y-auto">
                 {savedAgents.map((agent) => (
                   <div
                     key={agent.id}
-                    className="group relative bg-white border border-slate-200 rounded-lg p-3 hover:border-indigo-400 hover:shadow-sm transition-all cursor-pointer"
-                    onClick={() => handleLoadAgent(agent.id)}
+                    className={`group flex items-center justify-between px-2 py-1.5 rounded hover:bg-slate-100 transition-colors ${currentWorkflowId === agent.id ? 'bg-indigo-50' : ''}`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-slate-700 truncate">
-                          {agent.name}
-                        </div>
-                        <div className="text-[10px] text-slate-400 mt-1">
-                          {agent.config.steps.length} bước
-                        </div>
-                      </div>
+                    <button
+                      onClick={() => handleLoadAgent(agent.id)}
+                      className={`flex-1 text-left text-sm truncate ${currentWorkflowId === agent.id ? 'text-indigo-600 font-semibold' : 'text-slate-700 hover:text-indigo-600'}`}
+                    >
+                      {agent.name} <span className="text-slate-400 font-normal">- {agent.config.steps.length} bước</span>
+                    </button>
+                    <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setRenameWorkflowId(agent.id);
+                          setRenameInput(agent.name);
+                          setShowRenameDialog(true);
+                        }}
+                        className="p-1 text-slate-400 hover:text-blue-600 rounded transition-colors"
+                        title="Đổi tên"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         onClick={(e) => handleDeleteAgent(agent.id, e)}
-                        className="opacity-0 group-hover:opacity-100 ml-2 p-1.5 text-slate-400 hover:text-red-500 rounded transition-all"
-                        title="Xóa workflow"
+                        className="p-1 text-slate-400 hover:text-red-500 rounded transition-colors"
+                        title="Xóa"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -2516,91 +2534,50 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {/* Save Agent */}
+          {/* Workflow Actions */}
           <div className="pt-4 border-t border-slate-100">
-            {/* Show current workflow indicator */}
-            {currentWorkflowId && !showSaveAgent && (
-              <div className="mb-2 text-xs text-slate-500 flex items-center justify-between bg-indigo-50 p-2 rounded-lg border border-indigo-100">
-                <span className="flex items-center">
-                  <FileText className="w-3 h-3 mr-1 text-indigo-600" />
-                  <span className="font-semibold text-indigo-700">
-                    {savedAgents.find(a => a.id === currentWorkflowId)?.name || 'Workflow đang chỉnh sửa'}
+            {currentWorkflowId ? (
+              <div className="space-y-2">
+                {/* Workflow đang chọn */}
+                <div className="flex items-center justify-between bg-indigo-50 p-2 rounded-lg border border-indigo-100">
+                  <span className="flex items-center text-xs">
+                    <FileText className="w-3 h-3 mr-1 text-indigo-600" />
+                    <span className="font-semibold text-indigo-700">
+                      {savedAgents.find(a => a.id === currentWorkflowId)?.name || 'Workflow'}
+                    </span>
                   </span>
-                </span>
+                  <button
+                    onClick={handleDeselectWorkflow}
+                    className="text-indigo-400 hover:text-indigo-600 transition-colors"
+                    title="Bỏ chọn workflow"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+
+                {/* Nút cập nhật */}
                 <button
                   onClick={() => {
-                    setCurrentWorkflowId(null);
-                    setAgentNameInput("");
+                    setSelectedWorkflowToUpdate(currentWorkflowId);
+                    handleSaveAgent(false);
                   }}
-                  className="text-indigo-400 hover:text-indigo-600 transition-colors"
-                  title="Tạo workflow mới"
+                  className="w-full bg-indigo-600 text-white py-2 rounded text-sm hover:bg-indigo-700 font-semibold flex items-center justify-center space-x-1"
                 >
-                  <X className="w-3 h-3" />
+                  <Save className="w-4 h-4" />
+                  <span>Cập nhật Workflow</span>
                 </button>
               </div>
-            )}
-
-            <div className="flex flex-col space-y-2">
-              {/* Dropdown chọn workflow để cập nhật */}
-              {savedAgents.length > 0 && (
-                <div className="flex items-center space-x-2">
-                  <select
-                    value={selectedWorkflowToUpdate}
-                    onChange={(e) => setSelectedWorkflowToUpdate(e.target.value)}
-                    className="flex-1 text-sm border-slate-300 rounded px-3 py-2 border focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  >
-                    <option value="">-- Chọn workflow để cập nhật --</option>
-                    {savedAgents.map(agent => (
-                      <option key={agent.id} value={agent.id}>
-                        {agent.name}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedWorkflowToUpdate && (
-                    <button
-                      onClick={() => {
-                        const workflow = savedAgents.find(a => a.id === selectedWorkflowToUpdate);
-                        if (workflow) {
-                          setRenameWorkflowId(selectedWorkflowToUpdate);
-                          setRenameInput(workflow.name);
-                          setShowRenameDialog(true);
-                        }
-                      }}
-                      className="px-3 py-2 bg-blue-50 text-blue-600 rounded text-sm hover:bg-blue-100 font-medium flex items-center space-x-1"
-                      title="Đổi tên workflow"
-                    >
-                      <Edit className="w-3.5 h-3.5" />
-                      <span>Đổi tên</span>
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {/* Buttons */}
-              <div className="flex space-x-2">
-                {/* Nút Cập nhật - chỉ hiện khi đã chọn workflow */}
-                {selectedWorkflowToUpdate && (
-                  <button
-                    onClick={() => handleSaveAgent(false)}
-                    className="flex-1 bg-indigo-600 text-white py-2 rounded text-sm hover:bg-indigo-700 font-semibold flex items-center justify-center space-x-1"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>Cập nhật</span>
-                  </button>
-                )}
-
-                {/* Nút Lưu mới */}
+            ) : (
+              /* Nút Lưu mới khi chưa chọn workflow */
+              !showSaveAgent ? (
                 <button
                   onClick={() => setShowSaveAgent(true)}
-                  className="flex-1 bg-green-600 text-white py-2 rounded text-sm hover:bg-green-700 font-semibold flex items-center justify-center space-x-1"
+                  className="w-full bg-green-600 text-white py-2 rounded text-sm hover:bg-green-700 font-semibold flex items-center justify-center space-x-1"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Lưu mới</span>
                 </button>
-              </div>
-
-              {/* Dialog nhập tên khi lưu mới */}
-              {showSaveAgent && (
+              ) : (
                 <div className="flex flex-col space-y-2 p-3 bg-green-50 border border-green-200 rounded-lg animate-in fade-in zoom-in duration-200">
                   <label className="text-xs font-semibold text-green-700">Tên workflow mới:</label>
                   <input
@@ -2633,8 +2610,8 @@ const App: React.FC = () => {
                     </button>
                   </div>
                 </div>
-              )}
-            </div>
+              )
+            )}
           </div>
         </div>
       </aside>
