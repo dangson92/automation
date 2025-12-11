@@ -328,7 +328,9 @@ const App: React.FC = () => {
 
   // --- Persistence ---
   useEffect(() => {
+    console.log('[LOCALSTORAGE] Saving agents:', savedAgents.length, 'workflows');
     localStorage.setItem('promptflow_agents', JSON.stringify(savedAgents));
+    console.log('[LOCALSTORAGE] Saved to localStorage');
   }, [savedAgents]);
 
   useEffect(() => {
@@ -338,16 +340,22 @@ const App: React.FC = () => {
   // Auto-save workflow changes when editing a loaded workflow
   useEffect(() => {
     if (currentWorkflowId) {
+      console.log('[AUTO-SAVE] Saving workflow:', currentWorkflowId);
+      console.log('[AUTO-SAVE] Config steps:', config.steps.length);
       // Only auto-save if we have a loaded workflow
-      setSavedAgents(prev => prev.map(agent =>
-        agent.id === currentWorkflowId
-          ? {
-              ...agent,
-              config: { ...config },
-              automationConfig: { ...automationConfig }
-            }
-          : agent
-      ));
+      setSavedAgents(prev => {
+        const updated = prev.map(agent =>
+          agent.id === currentWorkflowId
+            ? {
+                ...agent,
+                config: { ...config },
+                automationConfig: { ...automationConfig }
+              }
+            : agent
+        );
+        console.log('[AUTO-SAVE] Updated agents count:', updated.length);
+        return updated;
+      });
     }
   }, [config, automationConfig, currentWorkflowId]);
 
@@ -1071,22 +1079,35 @@ const App: React.FC = () => {
 
   // --- Agent Management ---
   const handleSaveAgent = (saveAsNew = false) => {
+    console.log('[HANDLE_SAVE] Called with saveAsNew:', saveAsNew);
+    console.log('[HANDLE_SAVE] selectedWorkflowToUpdate:', selectedWorkflowToUpdate);
+    console.log('[HANDLE_SAVE] agentNameInput:', agentNameInput);
+
     // If we have a selected workflow to update and not explicitly saving as new, update it
     if (selectedWorkflowToUpdate && !saveAsNew) {
+      console.log('[HANDLE_SAVE] Updating existing workflow:', selectedWorkflowToUpdate);
       // Update existing workflow - no need for agentNameInput
-      setSavedAgents(prev => prev.map(agent =>
-        agent.id === selectedWorkflowToUpdate
-          ? {
-              ...agent,
-              config: { ...config },
-              automationConfig: { ...automationConfig }
-            }
-          : agent
-      ));
+      setSavedAgents(prev => {
+        const updated = prev.map(agent =>
+          agent.id === selectedWorkflowToUpdate
+            ? {
+                ...agent,
+                config: { ...config },
+                automationConfig: { ...automationConfig }
+              }
+            : agent
+        );
+        console.log('[HANDLE_SAVE] Updated savedAgents');
+        return updated;
+      });
       setCurrentWorkflowId(selectedWorkflowToUpdate); // Update current workflow ID
     } else {
+      console.log('[HANDLE_SAVE] Creating new workflow');
       // Create new workflow - require agentNameInput
-      if (!agentNameInput.trim()) return;
+      if (!agentNameInput.trim()) {
+        console.log('[HANDLE_SAVE] No agentNameInput, returning');
+        return;
+      }
       // Create new workflow
       const newAgent: SavedAgent = {
         id: generateId(),
@@ -2675,11 +2696,19 @@ const App: React.FC = () => {
 
                 {/* Nút cập nhật */}
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('[UPDATE BUTTON] Clicked! currentWorkflowId:', currentWorkflowId);
+                    console.log('[UPDATE BUTTON] savedAgents:', savedAgents.length);
+                    alert('Button clicked! Check console');
                     setSelectedWorkflowToUpdate(currentWorkflowId);
+                    console.log('[UPDATE BUTTON] Calling handleSaveAgent...');
                     handleSaveAgent(false);
+                    console.log('[UPDATE BUTTON] handleSaveAgent completed');
                   }}
-                  className="w-full bg-indigo-600 text-white py-2 rounded text-sm hover:bg-indigo-700 font-semibold flex items-center justify-center space-x-1"
+                  className="w-full bg-indigo-600 text-white py-2 rounded text-sm hover:bg-indigo-700 font-semibold flex items-center justify-center space-x-1 relative z-50 cursor-pointer"
+                  style={{ pointerEvents: 'auto' }}
                 >
                   <Save className="w-4 h-4" />
                   <span>Cập nhật Workflow</span>
