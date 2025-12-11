@@ -133,24 +133,39 @@ const normalizeClaudeHtml = (htmlString: string): string => {
   const parser = new DOMParser();
   const doc = parser.parseFromString(htmlString, 'text/html');
 
-  // Find wrapper div with class "standard-markdown"
-  let contentDiv = doc.querySelector('div.standard-markdown, div[class*="standard-markdown"]');
+  // Strategy: Unwrap ONLY if body has a single wrapper div
+  // If body has multiple children or no wrapper, keep everything
+  let innerContent: string;
 
-  if (!contentDiv) {
-    // Không tìm thấy wrapper, dùng body luôn
-    contentDiv = doc.body;
+  // Check if body has exactly 1 child
+  if (doc.body.children.length === 1) {
+    const singleChild = doc.body.children[0] as HTMLElement;
+    const childClasses = singleChild.className || '';
+
+    // Check if it's a Claude UI wrapper div
+    const isWrapper =
+      singleChild.tagName.toLowerCase() === 'div' &&
+      (childClasses.includes('standard-markdown') ||
+       childClasses.includes('font-claude') ||
+       childClasses.includes('claude-response'));
+
+    if (isWrapper) {
+      // Unwrap: lấy innerHTML của wrapper, bỏ div bao ngoài
+      innerContent = singleChild.innerHTML;
+    } else {
+      // Không phải wrapper, giữ nguyên
+      innerContent = doc.body.innerHTML;
+    }
+  } else {
+    // Nhiều children hoặc không có children, giữ nguyên tất cả
+    innerContent = doc.body.innerHTML;
   }
 
-  // Get innerHTML from wrapper
-  let innerContent = (contentDiv as HTMLElement).innerHTML;
+  // Decode ALL HTML entities (handles double encoding và complex HTML)
+  // DOMParser đã decode 1 lần, function này decode thêm nếu còn entities
+  innerContent = decodeHTMLEntities(innerContent);
 
-  // Decode HTML entities trong nội dung
-  // Tìm các đoạn text dạng &lt;p&gt;...&lt;/p&gt; và decode chúng
-  innerContent = innerContent.replace(/&lt;([^&]+)&gt;/g, (match, tag) => {
-    return `<${tag}>`;
-  });
-
-  // Parse lại sau khi decode
+  // Parse lại sau khi decode để có HTML structure đúng
   const contentDoc = parser.parseFromString(innerContent, 'text/html');
 
   // Remove [imageX] paragraphs (có class font-claude-response-body)
