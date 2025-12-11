@@ -2495,17 +2495,20 @@ const App: React.FC = () => {
               <h3 className="text-xs font-bold uppercase text-slate-500 tracking-wider mb-2">
                 Workflow đã lưu ({savedAgents.length} workflow{savedAgents.length > 1 ? 's' : ''})
               </h3>
-              <div className="space-y-1 max-h-64 overflow-y-auto">
-                {savedAgents.map((agent) => (
+              <div className="max-h-64 overflow-y-auto">
+                {savedAgents.map((agent, index) => (
                   <div
                     key={agent.id}
-                    className={`group flex items-center justify-between px-2 py-1.5 rounded hover:bg-slate-100 transition-colors ${currentWorkflowId === agent.id ? 'bg-indigo-50' : ''}`}
+                    className={`group flex items-center justify-between px-2 py-2 hover:bg-slate-100 transition-colors ${currentWorkflowId === agent.id ? 'bg-indigo-50' : ''} ${index < savedAgents.length - 1 ? 'border-b border-slate-100' : ''}`}
                   >
                     <button
                       onClick={() => handleLoadAgent(agent.id)}
-                      className={`flex-1 text-left text-sm truncate ${currentWorkflowId === agent.id ? 'text-indigo-600 font-semibold' : 'text-slate-700 hover:text-indigo-600'}`}
+                      className={`flex items-center space-x-2 flex-1 text-left text-sm truncate ${currentWorkflowId === agent.id ? 'text-indigo-600 font-semibold' : 'text-slate-700 hover:text-indigo-600'}`}
                     >
-                      {agent.name} <span className="text-slate-400 font-normal">- {agent.config.steps.length} bước</span>
+                      <Layers className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="truncate">
+                        {agent.name} <span className="text-slate-400 font-normal">- {agent.config.steps.length} bước</span>
+                      </span>
                     </button>
                     <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
