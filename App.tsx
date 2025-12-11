@@ -328,7 +328,9 @@ const App: React.FC = () => {
 
   // --- Persistence ---
   useEffect(() => {
+    console.log('[LOCALSTORAGE] Saving agents:', savedAgents.length, 'workflows');
     localStorage.setItem('promptflow_agents', JSON.stringify(savedAgents));
+    console.log('[LOCALSTORAGE] Saved to localStorage');
   }, [savedAgents]);
 
   useEffect(() => {
@@ -338,16 +340,22 @@ const App: React.FC = () => {
   // Auto-save workflow changes when editing a loaded workflow
   useEffect(() => {
     if (currentWorkflowId) {
+      console.log('[AUTO-SAVE] Saving workflow:', currentWorkflowId);
+      console.log('[AUTO-SAVE] Config steps:', config.steps.length);
       // Only auto-save if we have a loaded workflow
-      setSavedAgents(prev => prev.map(agent =>
-        agent.id === currentWorkflowId
-          ? {
-              ...agent,
-              config: { ...config },
-              automationConfig: { ...automationConfig }
-            }
-          : agent
-      ));
+      setSavedAgents(prev => {
+        const updated = prev.map(agent =>
+          agent.id === currentWorkflowId
+            ? {
+                ...agent,
+                config: { ...config },
+                automationConfig: { ...automationConfig }
+              }
+            : agent
+        );
+        console.log('[AUTO-SAVE] Updated agents count:', updated.length);
+        return updated;
+      });
     }
   }, [config, automationConfig, currentWorkflowId]);
 
