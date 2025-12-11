@@ -91,6 +91,13 @@
         overflow: hidden;
       }
 
+      /* Override Tailwind's transition-all to remove duration */
+      .transition-all {
+        transition-property: all;
+        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+        transition-duration: 0s !important;
+      }
+
       /* Smooth transition for step content */
       .step-content-transition {
         transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
