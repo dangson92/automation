@@ -8,6 +8,9 @@ let licenseManager;
 let licenseWindow;
 
 function createWindow() {
+  // Migrate data from old appId path if needed (one-time migration)
+  migrateDataIfNeeded();
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -96,6 +99,77 @@ let loginWindow = null;
 const getQueueFilePath = () => {
   const userDataPath = app.getPath('userData');
   return path.join(userDataPath, 'queue.json');
+};
+
+// Helper: Get old userData path (before appId change)
+const getOldUserDataPath = () => {
+  // Try to find data from the temporary new appId path
+  const platform = process.platform;
+  let oldPath;
+
+  if (platform === 'win32') {
+    // Windows: %APPDATA%/Sơn Đặng Auto Content
+    oldPath = path.join(app.getPath('appData'), 'Sơn Đặng Auto Content');
+  } else if (platform === 'darwin') {
+    // macOS: ~/Library/Application Support/Sơn Đặng Auto Content
+    oldPath = path.join(app.getPath('home'), 'Library', 'Application Support', 'Sơn Đặng Auto Content');
+  } else {
+    // Linux: ~/.config/Sơn Đặng Auto Content
+    oldPath = path.join(app.getPath('home'), '.config', 'Sơn Đặng Auto Content');
+  }
+
+  return oldPath;
+};
+
+// Migrate data from old appId path if needed
+const migrateDataIfNeeded = () => {
+  const currentPath = getQueueFilePath();
+  const oldUserDataPath = getOldUserDataPath();
+  const oldQueuePath = path.join(oldUserDataPath, 'queue.json');
+
+  // If current path doesn't exist but old path exists, migrate
+  if (!fs.existsSync(currentPath) && fs.existsSync(oldQueuePath)) {
+    try {
+      console.log('Migrating queue data from:', oldQueuePath);
+      console.log('To:', currentPath);
+
+      // Ensure directory exists
+      const currentDir = path.dirname(currentPath);
+      if (!fs.existsSync(currentDir)) {
+        fs.mkdirSync(currentDir, { recursive: true });
+      }
+
+      // Copy queue.json
+      fs.copyFileSync(oldQueuePath, currentPath);
+      console.log('✓ Queue data migrated successfully');
+
+      // Also migrate license directory if exists
+      const oldLicensePath = path.join(oldUserDataPath, 'license');
+      const newLicensePath = path.join(app.getPath('userData'), 'license');
+
+      if (fs.existsSync(oldLicensePath) && !fs.existsSync(newLicensePath)) {
+        console.log('Migrating license data...');
+        fs.mkdirSync(newLicensePath, { recursive: true });
+
+        // Copy all files in license directory
+        const files = fs.readdirSync(oldLicensePath);
+        files.forEach(file => {
+          fs.copyFileSync(
+            path.join(oldLicensePath, file),
+            path.join(newLicensePath, file)
+          );
+        });
+        console.log('✓ License data migrated successfully');
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Failed to migrate data:', error);
+      return false;
+    }
+  }
+
+  return false;
 };
 
 // Save queue to file
