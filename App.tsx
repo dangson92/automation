@@ -51,13 +51,34 @@ const isElectron = () => {
   return !!window.electronAPI;
 };
 
-// Clean HTML - only remove dangerous XSS attributes, keep all safe attributes including class, style, etc.
+// Clean HTML - strip Claude UI wrappers and remove dangerous XSS attributes
 const cleanHTML = (html: string): string => {
   if (!html) return html;
 
   // Use DOMParser to parse HTML
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
+
+  // Strip Claude UI wrapper divs (e.g., <div class="standard-markdown ...">)
+  // Look for wrapper elements with Claude-specific classes
+  const claudeWrapperClasses = ['standard-markdown', 'font-claude', 'claude-response'];
+  const bodyChildren = Array.from(doc.body.children);
+
+  // If there's a single wrapper div with Claude classes, extract its innerHTML
+  if (bodyChildren.length === 1 && bodyChildren[0].tagName.toLowerCase() === 'div') {
+    const wrapperDiv = bodyChildren[0] as HTMLElement;
+    const divClasses = wrapperDiv.className || '';
+
+    // Check if this div has Claude UI classes
+    const hasClaudeWrapperClass = claudeWrapperClasses.some(claudeClass =>
+      divClasses.includes(claudeClass)
+    );
+
+    if (hasClaudeWrapperClass) {
+      // Replace body content with wrapper's innerHTML
+      doc.body.innerHTML = wrapperDiv.innerHTML;
+    }
+  }
 
   // Dangerous attributes to remove (XSS prevention)
   const dangerousAttributes = [
