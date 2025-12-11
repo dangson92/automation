@@ -58,16 +58,24 @@ const decodeHTMLEntities = (text: string): string => {
   return textArea.value;
 };
 
-// Helper function to remove all attributes except allowed ones
+// Helper function to remove only dangerous attributes (XSS prevention)
 const cleanAttributes = (element: Element): void => {
-  const allowedAttributes = ['href', 'src', 'alt', 'colspan', 'rowspan', 'target', 'rel'];
+  // Dangerous event handlers to remove
+  const dangerousAttributes = [
+    'onclick', 'ondblclick', 'onmousedown', 'onmouseup', 'onmouseover', 'onmousemove', 'onmouseout',
+    'onkeydown', 'onkeyup', 'onkeypress', 'onfocus', 'onblur', 'onchange', 'onsubmit', 'onreset',
+    'onselect', 'onload', 'onerror', 'onabort', 'onunload', 'onresize', 'onscroll',
+    'oncontextmenu', 'ondrag', 'ondrop', 'oninput', 'oninvalid', 'onsearch',
+    'onanimationend', 'onanimationiteration', 'onanimationstart', 'ontransitionend'
+  ];
+
   const attrs = Array.from(element.attributes).map(attr => attr.name);
 
   attrs.forEach(attrName => {
     const attrLower = attrName.toLowerCase();
 
-    // Remove if not in allowed list
-    if (!allowedAttributes.includes(attrLower)) {
+    // Remove dangerous event handlers
+    if (dangerousAttributes.includes(attrLower)) {
       element.removeAttribute(attrName);
       return;
     }
