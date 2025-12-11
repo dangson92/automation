@@ -227,7 +227,7 @@ const App: React.FC = () => {
   const [agentNameInput, setAgentNameInput] = useState("");
   const [showSaveAgent, setShowSaveAgent] = useState(false);
   const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(null); // Track currently loaded workflow
-  const [selectedWorkflowToUpdate, setSelectedWorkflowToUpdate] = useState<string>(''); // Workflow selected for update
+  const [isSavingWorkflow, setIsSavingWorkflow] = useState(false); // Track save state
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [renameWorkflowId, setRenameWorkflowId] = useState<string | null>(null);
   const [renameInput, setRenameInput] = useState("");
@@ -1079,52 +1079,31 @@ const App: React.FC = () => {
 
   // --- Agent Management ---
   const handleSaveAgent = (saveAsNew = false, workflowId?: string) => {
-    console.log('[HANDLE_SAVE] Called with saveAsNew:', saveAsNew, 'workflowId:', workflowId);
-    console.log('[HANDLE_SAVE] selectedWorkflowToUpdate:', selectedWorkflowToUpdate);
-    console.log('[HANDLE_SAVE] agentNameInput:', agentNameInput);
-
-    // Determine which workflow to update: use passed workflowId or selectedWorkflowToUpdate
-    const targetWorkflowId = workflowId || selectedWorkflowToUpdate;
-
-    // If we have a target workflow to update and not explicitly saving as new, update it
-    if (targetWorkflowId && !saveAsNew) {
-      console.log('[HANDLE_SAVE] Updating existing workflow:', targetWorkflowId);
-      // Update existing workflow - no need for agentNameInput
-      setSavedAgents(prev => {
-        const updated = prev.map(agent =>
-          agent.id === targetWorkflowId
-            ? {
-                ...agent,
-                config: { ...config },
-                automationConfig: { ...automationConfig }
-              }
-            : agent
-        );
-        console.log('[HANDLE_SAVE] Updated savedAgents');
-        return updated;
-      });
-      setCurrentWorkflowId(targetWorkflowId); // Update current workflow ID
-    } else {
-      console.log('[HANDLE_SAVE] Creating new workflow');
-      // Create new workflow - require agentNameInput
-      if (!agentNameInput.trim()) {
-        console.log('[HANDLE_SAVE] No agentNameInput, returning');
-        return;
-      }
-      // Create new workflow
-      const newAgent: SavedAgent = {
-        id: generateId(),
-        name: agentNameInput,
-        config: { ...config },
-        automationConfig: { ...automationConfig }
-      };
-      setSavedAgents(prev => [...prev, newAgent]);
-      setCurrentWorkflowId(newAgent.id); // Set as current workflow
+    // Update existing workflow by ID
+    if (workflowId && !saveAsNew) {
+      console.log('[HANDLE_SAVE] Updating workflow:', workflowId);
+      setSavedAgents(prev => prev.map(agent =>
+        agent.id === workflowId
+          ? { ...agent, config: { ...config }, automationConfig: { ...automationConfig } }
+          : agent
+      ));
+      setCurrentWorkflowId(workflowId);
+      return;
     }
 
+    // Create new workflow
+    if (!agentNameInput.trim()) return;
+
+    const newAgent: SavedAgent = {
+      id: generateId(),
+      name: agentNameInput,
+      config: { ...config },
+      automationConfig: { ...automationConfig }
+    };
+    setSavedAgents(prev => [...prev, newAgent]);
+    setCurrentWorkflowId(newAgent.id);
     setAgentNameInput("");
     setShowSaveAgent(false);
-    setSelectedWorkflowToUpdate('');
   };
 
   const handleRenameWorkflow = () => {
@@ -1144,9 +1123,6 @@ const App: React.FC = () => {
     setShowRenameDialog(false);
     setRenameWorkflowId(null);
     setRenameInput("");
-
-    // Keep the workflow selected in dropdown after rename
-    setSelectedWorkflowToUpdate(renameWorkflowId);
   };
 
   const handleLoadAgent = (agentId: string) => {
@@ -1155,16 +1131,13 @@ const App: React.FC = () => {
       setConfig(agent.config);
       if (agent.automationConfig) setAutomationConfig(agent.automationConfig);
       if (agent.config.steps.length > 0) setExpandedStepId(agent.config.steps[0].id);
-      setCurrentWorkflowId(agentId); // Track which workflow is loaded
-      setSelectedWorkflowToUpdate(''); // Clear update selection
+      setCurrentWorkflowId(agentId);
     }
   };
 
   const handleDeselectWorkflow = () => {
     setCurrentWorkflowId(null);
-    setSelectedWorkflowToUpdate('');
     setAgentNameInput("");
-    // Reset config to default
     setConfig(DEFAULT_CONFIG);
     setAutomationConfig(DEFAULT_AUTOMATION);
     if (DEFAULT_CONFIG.steps.length > 0) setExpandedStepId(DEFAULT_CONFIG.steps[0].id);
@@ -2700,15 +2673,32 @@ const App: React.FC = () => {
                 {/* Nút cập nhật */}
                 <button
                   onClick={() => {
-                    console.log('[UPDATE BUTTON] Clicked! currentWorkflowId:', currentWorkflowId);
-                    // Pass currentWorkflowId directly to avoid race condition
+                    if (isSavingWorkflow) return;
+                    setIsSavingWorkflow(true);
                     handleSaveAgent(false, currentWorkflowId || undefined);
-                    alert('Đã lưu workflow!');
+                    setTimeout(() => setIsSavingWorkflow(false), 1000);
                   }}
-                  className="w-full bg-indigo-600 text-white py-2 rounded text-sm hover:bg-indigo-700 font-semibold flex items-center justify-center space-x-1"
+                  disabled={isSavingWorkflow}
+                  className={`w-full py-2 rounded text-sm font-semibold flex items-center justify-center space-x-1 transition-colors ${
+                    isSavingWorkflow
+                      ? 'bg-green-600 text-white cursor-not-allowed'
+                      : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  }`}
                 >
-                  <Save className="w-4 h-4" />
-                  <span>Cập nhật Workflow</span>
+                  {isSavingWorkflow ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Đã lưu!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>Cập nhật Workflow</span>
+                    </>
+                  )}
                 </button>
               </div>
             ) : (
