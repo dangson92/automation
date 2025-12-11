@@ -51,7 +51,7 @@ const isElectron = () => {
   return !!window.electronAPI;
 };
 
-// Clean HTML to remove unnecessary attributes and keep only content
+// Clean HTML - strip Claude UI wrappers and remove dangerous XSS attributes
 const cleanHTML = (html: string): string => {
   if (!html) return html;
 
@@ -59,19 +59,59 @@ const cleanHTML = (html: string): string => {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
 
-  // Remove ALL attributes from all elements except href for links
+  // Strip Claude UI wrapper divs (e.g., <div class="standard-markdown ...">)
+  // Look for wrapper elements with Claude-specific classes
+  const claudeWrapperClasses = ['standard-markdown', 'font-claude', 'claude-response'];
+  const bodyChildren = Array.from(doc.body.children);
+
+  // If there's a single wrapper div with Claude classes, extract its innerHTML
+  if (bodyChildren.length === 1 && bodyChildren[0].tagName.toLowerCase() === 'div') {
+    const wrapperDiv = bodyChildren[0] as HTMLElement;
+    const divClasses = wrapperDiv.className || '';
+
+    // Check if this div has Claude UI classes
+    const hasClaudeWrapperClass = claudeWrapperClasses.some(claudeClass =>
+      divClasses.includes(claudeClass)
+    );
+
+    if (hasClaudeWrapperClass) {
+      // Replace body content with wrapper's innerHTML
+      doc.body.innerHTML = wrapperDiv.innerHTML;
+    }
+  }
+
+  // Dangerous attributes to remove (XSS prevention)
+  const dangerousAttributes = [
+    'onclick', 'ondblclick', 'onmousedown', 'onmouseup', 'onmouseover', 'onmousemove', 'onmouseout',
+    'onkeydown', 'onkeyup', 'onkeypress', 'onfocus', 'onblur', 'onchange', 'onsubmit', 'onreset',
+    'onselect', 'onload', 'onerror', 'onabort', 'onunload', 'onresize', 'onscroll',
+    'oncontextmenu', 'ondrag', 'ondrop', 'oninput', 'oninvalid', 'onsearch',
+    'onanimationend', 'onanimationiteration', 'onanimationstart', 'ontransitionend'
+  ];
+
+  // Process all elements
   const allElements = doc.querySelectorAll('*');
   allElements.forEach(element => {
     // Get all attribute names
     const attrs = Array.from(element.attributes).map(attr => attr.name);
 
-    // Remove all attributes except href for <a> tags
+    // Remove only dangerous attributes
     attrs.forEach(attrName => {
-      if (element.tagName.toLowerCase() === 'a' && attrName === 'href') {
-        // Keep href for links
+      const attrLower = attrName.toLowerCase();
+
+      // Remove dangerous event handlers
+      if (dangerousAttributes.includes(attrLower)) {
+        element.removeAttribute(attrName);
         return;
       }
-      element.removeAttribute(attrName);
+
+      // Remove href with javascript:
+      if (attrLower === 'href' || attrLower === 'src') {
+        const attrValue = element.getAttribute(attrName);
+        if (attrValue && attrValue.toLowerCase().trim().startsWith('javascript:')) {
+          element.removeAttribute(attrName);
+        }
+      }
     });
   });
 
@@ -1681,6 +1721,7 @@ const App: React.FC = () => {
     completed: workflowQueue.filter(i => i.status === Status.COMPLETED).length,
     failed: workflowQueue.filter(i => i.status === Status.FAILED).length,
     queued: workflowQueue.filter(i => i.status === Status.QUEUED).length,
+    processing: workflowQueue.filter(i => i.status === Status.PROCESSING).length,
   };
 
   // Filter queue based on workflow, status and search text
@@ -2746,11 +2787,14 @@ const App: React.FC = () => {
                 <div className="flex items-center space-x-4">
                    <h3 className="font-semibold text-slate-700 flex items-center">
                      <Cpu className="w-4 h-4 mr-2 text-slate-400" />
-                     Danh sách công việc ({queue.length})
+                     Danh sách công việc ({stats.total})
                    </h3>
                    <div className="flex space-x-2 text-xs">
                       <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full">Xong: {stats.completed}</span>
                       <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">Chờ: {stats.queued}</span>
+                      {stats.processing > 0 && (
+                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-semibold animate-pulse">Đang chạy: {stats.processing}</span>
+                      )}
                    </div>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -2815,7 +2859,7 @@ const App: React.FC = () => {
                    </div>
                    {(filterStatus !== 'all' || searchText) && (
                       <span className="text-xs text-slate-500">
-                         Hiển thị: <span className="font-bold text-indigo-600">{filteredQueue.length}</span> / {queue.length}
+                         Hiển thị: <span className="font-bold text-indigo-600">{filteredQueue.length}</span> / {stats.total}
                       </span>
                    )}
                 </div>
