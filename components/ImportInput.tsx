@@ -439,8 +439,8 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
               </button>
             </div>
 
-            {!isMappingCollapsed && (
-              <>
+            <div className={`step-content-transition ${!isMappingCollapsed ? 'step-content-expanded' : 'step-content-collapsed'}`}>
+              <div className={!isMappingCollapsed ? '' : 'hidden'}>
                 {/* Column Headers */}
                 <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs font-medium text-slate-600">
                   <div className="col-span-2">Biến</div>
@@ -515,8 +515,8 @@ export const ImportInput: React.FC<ImportInputProps> = ({ steps, onAddToQueue, c
                     </button>
                   </div>
                 )}
-              </>
-            )}
+              </div>
+            </div>
           </div>
 
           <p className="text-xs text-slate-500 italic">
