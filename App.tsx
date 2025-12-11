@@ -335,6 +335,22 @@ const App: React.FC = () => {
     localStorage.setItem('promptflow_custom_login_urls', JSON.stringify(customLoginUrls));
   }, [customLoginUrls]);
 
+  // Auto-save workflow changes when editing a loaded workflow
+  useEffect(() => {
+    if (currentWorkflowId) {
+      // Only auto-save if we have a loaded workflow
+      setSavedAgents(prev => prev.map(agent =>
+        agent.id === currentWorkflowId
+          ? {
+              ...agent,
+              config: { ...config },
+              automationConfig: { ...automationConfig }
+            }
+          : agent
+      ));
+    }
+  }, [config, automationConfig, currentWorkflowId]);
+
   useEffect(() => {
     if (mode === 'ELECTRON' && window.electronAPI) {
       // Save to file in Electron mode
@@ -1055,10 +1071,9 @@ const App: React.FC = () => {
 
   // --- Agent Management ---
   const handleSaveAgent = (saveAsNew = false) => {
-    if (!agentNameInput.trim()) return;
-
     // If we have a selected workflow to update and not explicitly saving as new, update it
     if (selectedWorkflowToUpdate && !saveAsNew) {
+      // Update existing workflow - no need for agentNameInput
       setSavedAgents(prev => prev.map(agent =>
         agent.id === selectedWorkflowToUpdate
           ? {
@@ -1070,6 +1085,8 @@ const App: React.FC = () => {
       ));
       setCurrentWorkflowId(selectedWorkflowToUpdate); // Update current workflow ID
     } else {
+      // Create new workflow - require agentNameInput
+      if (!agentNameInput.trim()) return;
       // Create new workflow
       const newAgent: SavedAgent = {
         id: generateId(),
