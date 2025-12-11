@@ -2254,7 +2254,7 @@ const App: React.FC = () => {
                            onClick={() => setExpandedStepId(expandedStepId === step.id ? null : step.id)}
                          >
                             <div className="flex items-center space-x-3">
-                               <div className="flex items-center justify-center w-6 h-6 rounded-full bg-slate-100 text-xs font-bold text-slate-600">
+                               <div className="flex items-center justify-center w-7 h-7 rounded-full bg-indigo-600 text-xs font-bold text-white shadow-md">
                                   {index + 1}
                                </div>
                                <span className="text-sm font-semibold text-slate-700">{step.name}</span>
