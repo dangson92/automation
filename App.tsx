@@ -51,7 +51,7 @@ const isElectron = () => {
   return !!window.electronAPI;
 };
 
-// Clean HTML to remove unnecessary attributes and keep only content
+// Clean HTML to remove unnecessary attributes but preserve code blocks and important attributes
 const cleanHTML = (html: string): string => {
   if (!html) return html;
 
@@ -59,19 +59,47 @@ const cleanHTML = (html: string): string => {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
 
-  // Remove ALL attributes from all elements except href for links
+  // Attributes to keep for specific elements
+  const keepAttributes: Record<string, string[]> = {
+    'a': ['href', 'target', 'rel'],
+    'img': ['src', 'alt', 'width', 'height'],
+    'table': ['class', 'style'],
+    'td': ['class', 'style', 'colspan', 'rowspan'],
+    'th': ['class', 'style', 'colspan', 'rowspan'],
+    'pre': ['class', 'style'],
+    'code': ['class', 'style'],
+    'div': ['class', 'style'],
+    'span': ['class', 'style'],
+  };
+
+  // Process all elements except those inside <pre> or <code>
   const allElements = doc.querySelectorAll('*');
   allElements.forEach(element => {
+    // Skip cleaning if element is inside <pre> or <code> tag
+    let parent = element.parentElement;
+    let insideCodeBlock = false;
+    while (parent) {
+      if (parent.tagName.toLowerCase() === 'pre' || parent.tagName.toLowerCase() === 'code') {
+        insideCodeBlock = true;
+        break;
+      }
+      parent = parent.parentElement;
+    }
+
+    // If inside code block, keep all attributes
+    if (insideCodeBlock) return;
+
+    const tagName = element.tagName.toLowerCase();
+    const allowedAttrs = keepAttributes[tagName] || [];
+
     // Get all attribute names
     const attrs = Array.from(element.attributes).map(attr => attr.name);
 
-    // Remove all attributes except href for <a> tags
+    // Remove attributes that are not in the allowed list
     attrs.forEach(attrName => {
-      if (element.tagName.toLowerCase() === 'a' && attrName === 'href') {
-        // Keep href for links
-        return;
+      if (!allowedAttrs.includes(attrName)) {
+        element.removeAttribute(attrName);
       }
-      element.removeAttribute(attrName);
     });
   });
 
@@ -1681,6 +1709,7 @@ const App: React.FC = () => {
     completed: workflowQueue.filter(i => i.status === Status.COMPLETED).length,
     failed: workflowQueue.filter(i => i.status === Status.FAILED).length,
     queued: workflowQueue.filter(i => i.status === Status.QUEUED).length,
+    processing: workflowQueue.filter(i => i.status === Status.PROCESSING).length,
   };
 
   // Filter queue based on workflow, status and search text
@@ -2746,11 +2775,14 @@ const App: React.FC = () => {
                 <div className="flex items-center space-x-4">
                    <h3 className="font-semibold text-slate-700 flex items-center">
                      <Cpu className="w-4 h-4 mr-2 text-slate-400" />
-                     Danh sách công việc ({queue.length})
+                     Danh sách công việc ({stats.total})
                    </h3>
                    <div className="flex space-x-2 text-xs">
                       <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full">Xong: {stats.completed}</span>
                       <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full">Chờ: {stats.queued}</span>
+                      {stats.processing > 0 && (
+                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-semibold animate-pulse">Đang chạy: {stats.processing}</span>
+                      )}
                    </div>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -2815,7 +2847,7 @@ const App: React.FC = () => {
                    </div>
                    {(filterStatus !== 'all' || searchText) && (
                       <span className="text-xs text-slate-500">
-                         Hiển thị: <span className="font-bold text-indigo-600">{filteredQueue.length}</span> / {queue.length}
+                         Hiển thị: <span className="font-bold text-indigo-600">{filteredQueue.length}</span> / {stats.total}
                       </span>
                    )}
                 </div>
