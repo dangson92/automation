@@ -1078,18 +1078,21 @@ const App: React.FC = () => {
   };
 
   // --- Agent Management ---
-  const handleSaveAgent = (saveAsNew = false) => {
-    console.log('[HANDLE_SAVE] Called with saveAsNew:', saveAsNew);
+  const handleSaveAgent = (saveAsNew = false, workflowId?: string) => {
+    console.log('[HANDLE_SAVE] Called with saveAsNew:', saveAsNew, 'workflowId:', workflowId);
     console.log('[HANDLE_SAVE] selectedWorkflowToUpdate:', selectedWorkflowToUpdate);
     console.log('[HANDLE_SAVE] agentNameInput:', agentNameInput);
 
-    // If we have a selected workflow to update and not explicitly saving as new, update it
-    if (selectedWorkflowToUpdate && !saveAsNew) {
-      console.log('[HANDLE_SAVE] Updating existing workflow:', selectedWorkflowToUpdate);
+    // Determine which workflow to update: use passed workflowId or selectedWorkflowToUpdate
+    const targetWorkflowId = workflowId || selectedWorkflowToUpdate;
+
+    // If we have a target workflow to update and not explicitly saving as new, update it
+    if (targetWorkflowId && !saveAsNew) {
+      console.log('[HANDLE_SAVE] Updating existing workflow:', targetWorkflowId);
       // Update existing workflow - no need for agentNameInput
       setSavedAgents(prev => {
         const updated = prev.map(agent =>
-          agent.id === selectedWorkflowToUpdate
+          agent.id === targetWorkflowId
             ? {
                 ...agent,
                 config: { ...config },
@@ -1100,7 +1103,7 @@ const App: React.FC = () => {
         console.log('[HANDLE_SAVE] Updated savedAgents');
         return updated;
       });
-      setCurrentWorkflowId(selectedWorkflowToUpdate); // Update current workflow ID
+      setCurrentWorkflowId(targetWorkflowId); // Update current workflow ID
     } else {
       console.log('[HANDLE_SAVE] Creating new workflow');
       // Create new workflow - require agentNameInput
@@ -2696,19 +2699,13 @@ const App: React.FC = () => {
 
                 {/* Nút cập nhật */}
                 <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
+                  onClick={() => {
                     console.log('[UPDATE BUTTON] Clicked! currentWorkflowId:', currentWorkflowId);
-                    console.log('[UPDATE BUTTON] savedAgents:', savedAgents.length);
-                    alert('Button clicked! Check console');
-                    setSelectedWorkflowToUpdate(currentWorkflowId);
-                    console.log('[UPDATE BUTTON] Calling handleSaveAgent...');
-                    handleSaveAgent(false);
-                    console.log('[UPDATE BUTTON] handleSaveAgent completed');
+                    // Pass currentWorkflowId directly to avoid race condition
+                    handleSaveAgent(false, currentWorkflowId || undefined);
+                    alert('Đã lưu workflow!');
                   }}
-                  className="w-full bg-indigo-600 text-white py-2 rounded text-sm hover:bg-indigo-700 font-semibold flex items-center justify-center space-x-1 relative z-50 cursor-pointer"
-                  style={{ pointerEvents: 'auto' }}
+                  className="w-full bg-indigo-600 text-white py-2 rounded text-sm hover:bg-indigo-700 font-semibold flex items-center justify-center space-x-1"
                 >
                   <Save className="w-4 h-4" />
                   <span>Cập nhật Workflow</span>
