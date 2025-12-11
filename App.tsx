@@ -970,9 +970,17 @@ const App: React.FC = () => {
         : agent
     ));
 
+    // Update current workflow ID if renaming the currently loaded workflow
+    if (currentWorkflowId === renameWorkflowId) {
+      // Workflow name updated, currentWorkflowId stays the same (ID doesn't change)
+    }
+
     setShowRenameDialog(false);
     setRenameWorkflowId(null);
     setRenameInput("");
+
+    // Keep the workflow selected in dropdown after rename
+    setSelectedWorkflowToUpdate(renameWorkflowId);
   };
 
   const handleLoadAgent = (agentId: string) => {
