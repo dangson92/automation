@@ -80,32 +80,26 @@ const cleanHTML = (html: string): string => {
     }
   }
 
-  // Dangerous attributes to remove (XSS prevention)
-  const dangerousAttributes = [
-    'onclick', 'ondblclick', 'onmousedown', 'onmouseup', 'onmouseover', 'onmousemove', 'onmouseout',
-    'onkeydown', 'onkeyup', 'onkeypress', 'onfocus', 'onblur', 'onchange', 'onsubmit', 'onreset',
-    'onselect', 'onload', 'onerror', 'onabort', 'onunload', 'onresize', 'onscroll',
-    'oncontextmenu', 'ondrag', 'ondrop', 'oninput', 'oninvalid', 'onsearch',
-    'onanimationend', 'onanimationiteration', 'onanimationstart', 'ontransitionend'
-  ];
+  // Remove Claude UI classes and unnecessary attributes from all elements
+  // Keep only useful attributes: href, src, alt, colspan, rowspan, target, rel
+  const allowedAttributes = ['href', 'src', 'alt', 'colspan', 'rowspan', 'target', 'rel'];
 
-  // Process all elements
   const allElements = doc.querySelectorAll('*');
   allElements.forEach(element => {
     // Get all attribute names
     const attrs = Array.from(element.attributes).map(attr => attr.name);
 
-    // Remove only dangerous attributes
+    // Remove attributes that are not in allowed list or are dangerous
     attrs.forEach(attrName => {
       const attrLower = attrName.toLowerCase();
 
-      // Remove dangerous event handlers
-      if (dangerousAttributes.includes(attrLower)) {
+      // Check if attribute is allowed
+      if (!allowedAttributes.includes(attrLower)) {
         element.removeAttribute(attrName);
         return;
       }
 
-      // Remove href with javascript:
+      // Even for allowed attributes, remove href/src with javascript:
       if (attrLower === 'href' || attrLower === 'src') {
         const attrValue = element.getAttribute(attrName);
         if (attrValue && attrValue.toLowerCase().trim().startsWith('javascript:')) {
