@@ -1071,10 +1071,9 @@ const App: React.FC = () => {
 
   // --- Agent Management ---
   const handleSaveAgent = (saveAsNew = false) => {
-    if (!agentNameInput.trim()) return;
-
     // If we have a selected workflow to update and not explicitly saving as new, update it
     if (selectedWorkflowToUpdate && !saveAsNew) {
+      // Update existing workflow - no need for agentNameInput
       setSavedAgents(prev => prev.map(agent =>
         agent.id === selectedWorkflowToUpdate
           ? {
@@ -1086,6 +1085,8 @@ const App: React.FC = () => {
       ));
       setCurrentWorkflowId(selectedWorkflowToUpdate); // Update current workflow ID
     } else {
+      // Create new workflow - require agentNameInput
+      if (!agentNameInput.trim()) return;
       // Create new workflow
       const newAgent: SavedAgent = {
         id: generateId(),
