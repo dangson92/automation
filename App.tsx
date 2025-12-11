@@ -1721,7 +1721,7 @@ const App: React.FC = () => {
     completed: workflowQueue.filter(i => i.status === Status.COMPLETED).length,
     failed: workflowQueue.filter(i => i.status === Status.FAILED).length,
     queued: workflowQueue.filter(i => i.status === Status.QUEUED).length,
-    processing: workflowQueue.filter(i => i.status === Status.PROCESSING).length,
+    processing: workflowQueue.filter(i => i.status === Status.RUNNING).length,
   };
 
   // Filter queue based on workflow, status and search text
