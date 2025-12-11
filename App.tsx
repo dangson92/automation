@@ -51,7 +51,7 @@ const isElectron = () => {
   return !!window.electronAPI;
 };
 
-// Clean HTML to remove unnecessary attributes but preserve code blocks and important attributes
+// Clean HTML - only remove dangerous XSS attributes, keep all safe attributes including class, style, etc.
 const cleanHTML = (html: string): string => {
   if (!html) return html;
 
@@ -59,46 +59,37 @@ const cleanHTML = (html: string): string => {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
 
-  // Attributes to keep for specific elements
-  const keepAttributes: Record<string, string[]> = {
-    'a': ['href', 'target', 'rel'],
-    'img': ['src', 'alt', 'width', 'height'],
-    'table': ['class', 'style'],
-    'td': ['class', 'style', 'colspan', 'rowspan'],
-    'th': ['class', 'style', 'colspan', 'rowspan'],
-    'pre': ['class', 'style'],
-    'code': ['class', 'style'],
-    'div': ['class', 'style'],
-    'span': ['class', 'style'],
-  };
+  // Dangerous attributes to remove (XSS prevention)
+  const dangerousAttributes = [
+    'onclick', 'ondblclick', 'onmousedown', 'onmouseup', 'onmouseover', 'onmousemove', 'onmouseout',
+    'onkeydown', 'onkeyup', 'onkeypress', 'onfocus', 'onblur', 'onchange', 'onsubmit', 'onreset',
+    'onselect', 'onload', 'onerror', 'onabort', 'onunload', 'onresize', 'onscroll',
+    'oncontextmenu', 'ondrag', 'ondrop', 'oninput', 'oninvalid', 'onsearch',
+    'onanimationend', 'onanimationiteration', 'onanimationstart', 'ontransitionend'
+  ];
 
-  // Process all elements except those inside <pre> or <code>
+  // Process all elements
   const allElements = doc.querySelectorAll('*');
   allElements.forEach(element => {
-    // Skip cleaning if element is inside <pre> or <code> tag
-    let parent = element.parentElement;
-    let insideCodeBlock = false;
-    while (parent) {
-      if (parent.tagName.toLowerCase() === 'pre' || parent.tagName.toLowerCase() === 'code') {
-        insideCodeBlock = true;
-        break;
-      }
-      parent = parent.parentElement;
-    }
-
-    // If inside code block, keep all attributes
-    if (insideCodeBlock) return;
-
-    const tagName = element.tagName.toLowerCase();
-    const allowedAttrs = keepAttributes[tagName] || [];
-
     // Get all attribute names
     const attrs = Array.from(element.attributes).map(attr => attr.name);
 
-    // Remove attributes that are not in the allowed list
+    // Remove only dangerous attributes
     attrs.forEach(attrName => {
-      if (!allowedAttrs.includes(attrName)) {
+      const attrLower = attrName.toLowerCase();
+
+      // Remove dangerous event handlers
+      if (dangerousAttributes.includes(attrLower)) {
         element.removeAttribute(attrName);
+        return;
+      }
+
+      // Remove href with javascript:
+      if (attrLower === 'href' || attrLower === 'src') {
+        const attrValue = element.getAttribute(attrName);
+        if (attrValue && attrValue.toLowerCase().trim().startsWith('javascript:')) {
+          element.removeAttribute(attrName);
+        }
       }
     });
   });
