@@ -2133,34 +2133,6 @@ const App: React.FC = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-6">
-          {/* Status Alert */}
-          {mode === 'ELECTRON' ? (
-             <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
-                 <div className="flex items-center space-x-2 text-blue-700 font-bold text-xs mb-1">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Desktop App Active</span>
-                 </div>
-                 <p className="text-[10px] text-blue-600 leading-relaxed">
-                    Ứng dụng đang chạy quyền Desktop.
-                 </p>
-             </div>
-          ) : mode === 'EXTENSION' ? (
-             <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3">
-                 <div className="flex items-center space-x-2 text-indigo-700 font-bold text-xs mb-1">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>Extension Active</span>
-                 </div>
-             </div>
-          ) : (
-             <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-800 flex items-start">
-                <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0" />
-                <div>
-                    Đang ở chế độ <strong>Giả lập Web</strong>. Chạy ứng dụng Desktop để có đầy đủ tính năng automation.
-                    <button onClick={() => setShowHelp(true)} className="block mt-1 underline font-bold">Xem hướng dẫn</button>
-                </div>
-             </div>
-          )}
-
           {/* HEADLESS CONFIG - ALWAYS VISIBLE */}
           <section className="space-y-2">
               <h2 className="text-xs font-bold uppercase text-slate-500 tracking-wider flex items-center">
