@@ -2696,15 +2696,19 @@ const App: React.FC = () => {
 
                 {/* Nút cập nhật */}
                 <button
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     console.log('[UPDATE BUTTON] Clicked! currentWorkflowId:', currentWorkflowId);
                     console.log('[UPDATE BUTTON] savedAgents:', savedAgents.length);
+                    alert('Button clicked! Check console');
                     setSelectedWorkflowToUpdate(currentWorkflowId);
                     console.log('[UPDATE BUTTON] Calling handleSaveAgent...');
                     handleSaveAgent(false);
                     console.log('[UPDATE BUTTON] handleSaveAgent completed');
                   }}
-                  className="w-full bg-indigo-600 text-white py-2 rounded text-sm hover:bg-indigo-700 font-semibold flex items-center justify-center space-x-1"
+                  className="w-full bg-indigo-600 text-white py-2 rounded text-sm hover:bg-indigo-700 font-semibold flex items-center justify-center space-x-1 relative z-50 cursor-pointer"
+                  style={{ pointerEvents: 'auto' }}
                 >
                   <Save className="w-4 h-4" />
                   <span>Cập nhật Workflow</span>
