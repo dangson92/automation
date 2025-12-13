@@ -706,14 +706,26 @@ const App: React.FC = () => {
         // Nếu không connect được, dùng URL scheme
         console.log('Không kết nối được localhost, chuyển sang URL scheme...', error);
 
-        // Base64 encode data with UTF-8 support
-        const jsonString = JSON.stringify(data);
-        const encoded = btoa(unescape(encodeURIComponent(jsonString)));
+        // Debug: Log data trước khi gửi
+        console.log('📦 Data gửi tới WP Poster:', data);
+        console.log('📊 Số bài viết:', posts.length);
+        console.log('📝 Sample post:', posts[0]);
 
-        // Mở app qua protocol
-        window.location.href = `wpposter://post?data=${encoded}`;
+        // Lưu data vào localStorage để WP Poster đọc
+        // (Tránh giới hạn độ dài của URL scheme)
+        try {
+          localStorage.setItem('wpposter_import_data', JSON.stringify(data));
+          console.log('✅ Đã lưu data vào localStorage với key: wpposter_import_data');
+        } catch (e) {
+          console.error('❌ Lỗi lưu localStorage:', e);
+        }
 
-        alert(`✅ Đã gửi ${posts.length} bài viết tới WP Poster!`);
+        // Mở app qua protocol (không truyền data qua URL)
+        const url = `wpposter://import`;
+        console.log('🚀 Mở URL scheme:', url);
+        window.location.href = url;
+
+        alert(`✅ Đã gửi ${posts.length} bài viết tới WP Poster!\n\nℹ️ Data đã được lưu vào localStorage với key: wpposter_import_data`);
       }
     } catch (error) {
       console.error('Lỗi khi đăng bài:', error);
