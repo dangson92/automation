@@ -100,6 +100,7 @@ declare global {
       exportSettings: (settings: { config: AppConfig; automationConfig: AutomationConfig }) => Promise<{ success: boolean; path?: string; error?: string }>;
       importSettings: () => Promise<{ success: boolean; data?: { config: AppConfig; automationConfig: AutomationConfig }; error?: string }>;
       searchPerplexityImages: (data: { query: string; headless: boolean; conversationUrl?: string }) => Promise<{ success?: boolean; images?: string[]; count?: number; conversationUrl?: string; error?: string }>;
+      savePublishData: (data: any) => Promise<{ success: boolean; filePath?: string; error?: string }>;
       // License management
       activateLicense: (licenseKey: string) => Promise<{ success?: boolean; message?: string; error?: string }>;
       verifyLicense: () => Promise<{ valid?: boolean; error?: string }>;

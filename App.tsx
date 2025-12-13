@@ -706,14 +706,44 @@ const App: React.FC = () => {
         // Nếu không connect được, dùng URL scheme
         console.log('Không kết nối được localhost, chuyển sang URL scheme...', error);
 
-        // Base64 encode data with UTF-8 support
-        const jsonString = JSON.stringify(data);
-        const encoded = btoa(unescape(encodeURIComponent(jsonString)));
+        // Debug: Log data trước khi gửi
+        console.log('📦 Data gửi tới WP Poster:', data);
+        console.log('📊 Số bài viết:', posts.length);
+        console.log('📝 Sample post:', posts[0]);
 
-        // Mở app qua protocol
-        window.location.href = `wpposter://post?data=${encoded}`;
+        // Lưu data (Electron: file temp, Web: localStorage)
+        if (mode === 'ELECTRON' && window.electronAPI) {
+          // Electron mode: Lưu vào file temp (không giới hạn kích thước)
+          try {
+            const result = await window.electronAPI.savePublishData(data);
+            if (result.success) {
+              console.log(`✅ Data đã được lưu vào file: ${result.filePath}`);
 
-        alert(`✅ Đã gửi ${posts.length} bài viết tới WP Poster!`);
+              // Mở WP Poster với file path
+              window.location.href = `wpposter://import?file=${encodeURIComponent(result.filePath || '')}`;
+
+              alert(`✅ Đã gửi ${posts.length} bài viết tới WP Poster!\n\n📂 File: ${result.filePath}`);
+            } else {
+              throw new Error(result.error || 'Không thể lưu file');
+            }
+          } catch (e) {
+            console.error('❌ Lỗi lưu file:', e);
+            alert(`❌ Lỗi lưu data: ${e instanceof Error ? e.message : 'Unknown'}`);
+          }
+        } else {
+          // Web mode: Fallback localStorage (giới hạn ~5-10MB)
+          try {
+            localStorage.setItem('wpposter_import_data', JSON.stringify(data));
+            console.log('✅ Data đã lưu vào localStorage (key: wpposter_import_data)');
+
+            window.location.href = `wpposter://import`;
+
+            alert(`✅ Đã gửi ${posts.length} bài viết tới WP Poster!\n\nℹ️ Data lưu trong localStorage`);
+          } catch (e) {
+            console.error('❌ Lỗi localStorage (có thể quá giới hạn):', e);
+            alert(`❌ Data quá lớn! Vui lòng giảm số bài viết hoặc dùng Desktop App.`);
+          }
+        }
       }
     } catch (error) {
       console.error('Lỗi khi đăng bài:', error);
