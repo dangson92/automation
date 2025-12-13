@@ -717,12 +717,39 @@ const App: React.FC = () => {
           try {
             const result = await window.electronAPI.savePublishData(data);
             if (result.success) {
-              console.log(`✅ Data đã được lưu vào file: ${result.filePath}`);
+              const urlScheme = `wpposter://import?file=${encodeURIComponent(result.filePath || '')}`;
+
+              console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+              console.log('✅ DATA ĐÃ LƯU THÀNH CÔNG');
+              console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+              console.log(`📂 File path: ${result.filePath}`);
+              console.log(`🔗 URL Scheme: ${urlScheme}`);
+              console.log(`📊 Tổng số bài: ${posts.length}`);
+              console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+              console.log('📋 COPY THÔNG TIN NÀY GỬI CHO WP POSTER TEAM:');
+              console.log(JSON.stringify({
+                urlScheme,
+                filePath: result.filePath,
+                totalPosts: posts.length,
+                samplePost: posts[0],
+                dataStructure: {
+                  posts: '[Array of post objects]',
+                  postFormat: {
+                    Title: 'string',
+                    Content: 'string (HTML)',
+                    Tags: 'string (comma-separated)',
+                    Categories: 'string (comma-separated)',
+                    Excerpt: 'string',
+                    Status: 'draft'
+                  }
+                }
+              }, null, 2));
+              console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
               // Mở WP Poster với file path
-              window.location.href = `wpposter://import?file=${encodeURIComponent(result.filePath || '')}`;
+              window.location.href = urlScheme;
 
-              alert(`✅ Đã gửi ${posts.length} bài viết tới WP Poster!\n\n📂 File: ${result.filePath}`);
+              alert(`✅ Đã gửi ${posts.length} bài viết tới WP Poster!\n\n📂 File: ${result.filePath}\n\n⚠️ Nếu WP Poster không nhận được data:\n1. Mở Console (F12)\n2. Copy thông tin debug\n3. Gửi cho WP Poster team`);
             } else {
               throw new Error(result.error || 'Không thể lưu file');
             }
