@@ -658,27 +658,21 @@ const App: React.FC = () => {
     setIsPublishing(true);
 
     try {
-      // Map QueueItem sang format API
+      // Map QueueItem sang format API - Dynamic format theo step names
       const posts = selectedItems.map(item => {
-        // Lấy title từ originalPrompt hoặc mappedInputs
-        const title = item.mappedInputs?.['input'] || item.originalPrompt.substring(0, 100);
+        const post: any = {};
 
-        // Lấy content từ finalResponse (kết quả step cuối cùng)
-        const content = item.finalResponse || '';
+        // Map mỗi step result thành một field với tên field = tên step
+        if (item.results && item.results.length > 0) {
+          item.results.forEach(result => {
+            post[result.stepName] = result.response;
+          });
+        }
 
-        // Lấy tags, categories, excerpt từ mappedInputs nếu có
-        const tags = item.mappedInputs?.['tags'] || item.mappedInputs?.['input1'] || '';
-        const categories = item.mappedInputs?.['categories'] || item.mappedInputs?.['input2'] || '';
-        const excerpt = item.mappedInputs?.['excerpt'] || item.mappedInputs?.['input3'] || '';
+        // Luôn có Status = draft
+        post.Status = 'draft';
 
-        return {
-          Title: title,
-          Content: content,
-          Tags: tags,
-          Categories: categories,
-          Excerpt: excerpt,
-          Status: 'draft'
-        };
+        return post;
       });
 
       const data = { posts };
