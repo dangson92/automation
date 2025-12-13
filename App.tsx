@@ -210,6 +210,7 @@ const App: React.FC = () => {
   // Queue will be loaded from file (Electron) or localStorage (web) in useEffect
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [inputText, setInputText] = useState("");
 
@@ -651,58 +652,74 @@ const App: React.FC = () => {
       return;
     }
 
-    // Map QueueItem sang format API
-    const posts = selectedItems.map(item => {
-      // Lấy title từ originalPrompt hoặc mappedInputs
-      const title = item.mappedInputs?.['input'] || item.originalPrompt.substring(0, 100);
-
-      // Lấy content từ finalResponse (kết quả step cuối cùng)
-      const content = item.finalResponse || '';
-
-      // Lấy tags, categories, excerpt từ mappedInputs nếu có
-      const tags = item.mappedInputs?.['tags'] || item.mappedInputs?.['input1'] || '';
-      const categories = item.mappedInputs?.['categories'] || item.mappedInputs?.['input2'] || '';
-      const excerpt = item.mappedInputs?.['excerpt'] || item.mappedInputs?.['input3'] || '';
-
-      return {
-        Title: title,
-        Content: content,
-        Tags: tags,
-        Categories: categories,
-        Excerpt: excerpt,
-        Status: 'draft'
-      };
-    });
-
-    const data = { posts };
+    setIsPublishing(true);
 
     try {
-      // Thử POST tới localhost trước
-      const response = await fetch('http://localhost:45678/api/import', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
+      // Map QueueItem sang format API
+      const posts = selectedItems.map(item => {
+        // Lấy title từ originalPrompt hoặc mappedInputs
+        const title = item.mappedInputs?.['input'] || item.originalPrompt.substring(0, 100);
+
+        // Lấy content từ finalResponse (kết quả step cuối cùng)
+        const content = item.finalResponse || '';
+
+        // Lấy tags, categories, excerpt từ mappedInputs nếu có
+        const tags = item.mappedInputs?.['tags'] || item.mappedInputs?.['input1'] || '';
+        const categories = item.mappedInputs?.['categories'] || item.mappedInputs?.['input2'] || '';
+        const excerpt = item.mappedInputs?.['excerpt'] || item.mappedInputs?.['input3'] || '';
+
+        return {
+          Title: title,
+          Content: content,
+          Tags: tags,
+          Categories: categories,
+          Excerpt: excerpt,
+          Status: 'draft'
+        };
       });
 
-      if (response.ok) {
-        alert(`Đã gửi ${posts.length} bài viết thành công tới WP Poster!`);
-        return;
-      } else {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      const data = { posts };
+
+      try {
+        // Thử POST tới localhost trước với timeout 3s
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+        const response = await fetch('http://localhost:45678/api/import', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          alert(`✅ Đăng thành công ${posts.length} bài viết!`);
+          return;
+        } else {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+      } catch (error) {
+        // Nếu không connect được, dùng URL scheme
+        console.log('Không kết nối được localhost, chuyển sang URL scheme...', error);
+
+        // Base64 encode data with UTF-8 support
+        const jsonString = JSON.stringify(data);
+        const encoded = btoa(unescape(encodeURIComponent(jsonString)));
+
+        // Mở app qua protocol
+        window.location.href = `wpposter://post?data=${encoded}`;
+
+        alert(`✅ Đã gửi ${posts.length} bài viết tới WP Poster!`);
       }
     } catch (error) {
-      // Nếu không connect được, dùng URL scheme
-      console.log('Không kết nối được localhost, chuyển sang URL scheme...', error);
-
-      // Base64 encode data
-      const encoded = btoa(JSON.stringify(data));
-
-      // Mở app qua protocol
-      window.location.href = `wpposter://post?data=${encoded}`;
-
-      alert(`Đang mở WP Poster với ${posts.length} bài viết...`);
+      console.error('Lỗi khi đăng bài:', error);
+      alert(`❌ Đăng thất bại: ${error instanceof Error ? error.message : 'Lỗi không xác định'}`);
+    } finally {
+      setIsPublishing(false);
     }
   };
 
@@ -2972,11 +2989,11 @@ const App: React.FC = () => {
                    </button>
                    <button
                       onClick={handlePublishPosts}
-                      disabled={selectedItemIds.size === 0}
+                      disabled={isPublishing || selectedItemIds.size === 0}
                       className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-green-300 rounded-md text-sm text-green-600 hover:bg-green-50 hover:text-green-700 transition-colors disabled:opacity-50"
                    >
-                      <Send className="w-4 h-4" />
-                      <span>Đăng bài</span>
+                      <Send className={`w-4 h-4 ${isPublishing ? 'animate-pulse' : ''}`} />
+                      <span>{isPublishing ? 'Đang đăng...' : 'Đăng web'}</span>
                    </button>
                    <button onClick={handleResetSelected} disabled={selectedItemIds.size === 0} className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-blue-300 rounded-md text-sm text-blue-600 hover:bg-blue-50 hover:text-blue-700 transition-colors disabled:opacity-50">
                       <RotateCcw className="w-4 h-4" />
