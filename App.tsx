@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Play, Pause, Plus, Trash2, Download, Save, UserCog, ChevronDown, Bot, Layout, Zap, X, Globe, HelpCircle, ArrowRight, Link as LinkIcon, Target, CheckCircle2, Cpu, FileText, Box, Layers, AlertTriangle, Monitor, Eye, EyeOff, Settings, Image as ImageIcon, RotateCcw, Search, Filter, Upload, Edit3, Edit } from 'lucide-react';
+import { Play, Pause, Plus, Trash2, Download, Save, UserCog, ChevronDown, Bot, Layout, Zap, X, Globe, HelpCircle, ArrowRight, Link as LinkIcon, Target, CheckCircle2, Cpu, FileText, Box, Layers, AlertTriangle, Monitor, Eye, EyeOff, Settings, Image as ImageIcon, RotateCcw, Search, Filter, Upload, Edit3, Edit, Send } from 'lucide-react';
 import { Status, QueueItem, AppConfig, SavedAgent, AutomationConfig, WorkflowStep, StepResult } from './types';
 import { OutputEditor } from './components/OutputEditor';
 import { generateContent } from './services/geminiService';
@@ -633,6 +633,77 @@ const App: React.FC = () => {
 
     // Clear selection
     setSelectedItemIds(new Set());
+  };
+
+  const handlePublishPosts = async () => {
+    if (selectedItemIds.size === 0) {
+      alert('Vui lòng chọn ít nhất 1 bài viết để đăng');
+      return;
+    }
+
+    // Lấy các items đã chọn và đã hoàn thành
+    const selectedItems = queue.filter(item =>
+      selectedItemIds.has(item.id) && item.status === Status.COMPLETED
+    );
+
+    if (selectedItems.length === 0) {
+      alert('Không có bài viết nào hoàn thành để đăng. Vui lòng chọn các bài đã COMPLETED.');
+      return;
+    }
+
+    // Map QueueItem sang format API
+    const posts = selectedItems.map(item => {
+      // Lấy title từ originalPrompt hoặc mappedInputs
+      const title = item.mappedInputs?.['input'] || item.originalPrompt.substring(0, 100);
+
+      // Lấy content từ finalResponse (kết quả step cuối cùng)
+      const content = item.finalResponse || '';
+
+      // Lấy tags, categories, excerpt từ mappedInputs nếu có
+      const tags = item.mappedInputs?.['tags'] || item.mappedInputs?.['input1'] || '';
+      const categories = item.mappedInputs?.['categories'] || item.mappedInputs?.['input2'] || '';
+      const excerpt = item.mappedInputs?.['excerpt'] || item.mappedInputs?.['input3'] || '';
+
+      return {
+        Title: title,
+        Content: content,
+        Tags: tags,
+        Categories: categories,
+        Excerpt: excerpt,
+        Status: 'draft'
+      };
+    });
+
+    const data = { posts };
+
+    try {
+      // Thử POST tới localhost trước
+      const response = await fetch('http://localhost:45678/api/import', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (response.ok) {
+        alert(`Đã gửi ${posts.length} bài viết thành công tới WP Poster!`);
+        return;
+      } else {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+    } catch (error) {
+      // Nếu không connect được, dùng URL scheme
+      console.log('Không kết nối được localhost, chuyển sang URL scheme...', error);
+
+      // Base64 encode data
+      const encoded = btoa(JSON.stringify(data));
+
+      // Mở app qua protocol
+      window.location.href = `wpposter://post?data=${encoded}`;
+
+      alert(`Đang mở WP Poster với ${posts.length} bài viết...`);
+    }
   };
 
   const handleRunSelected = () => {
@@ -2898,6 +2969,14 @@ const App: React.FC = () => {
                    >
                       <Download className="w-4 h-4" />
                       <span>{selectedItemIds.size > 0 ? 'Export đã chọn' : 'Excel'}</span>
+                   </button>
+                   <button
+                      onClick={handlePublishPosts}
+                      disabled={selectedItemIds.size === 0}
+                      className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-green-300 rounded-md text-sm text-green-600 hover:bg-green-50 hover:text-green-700 transition-colors disabled:opacity-50"
+                   >
+                      <Send className="w-4 h-4" />
+                      <span>Đăng bài</span>
                    </button>
                    <button onClick={handleResetSelected} disabled={selectedItemIds.size === 0} className="flex items-center space-x-1 px-3 py-1.5 bg-white border border-blue-300 rounded-md text-sm text-blue-600 hover:bg-blue-50 hover:text-blue-700 transition-colors disabled:opacity-50">
                       <RotateCcw className="w-4 h-4" />
