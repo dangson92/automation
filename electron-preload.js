@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportSettings: (settings) => ipcRenderer.invoke('settings-export', settings),
   importSettings: () => ipcRenderer.invoke('settings-import'),
   searchPerplexityImages: (data) => ipcRenderer.invoke('perplexity-search-images', data),
+  savePublishData: (data) => ipcRenderer.invoke('save-publish-data', data),
   // License management
   activateLicense: (licenseKey) => ipcRenderer.invoke('license-activate', licenseKey),
   verifyLicense: () => ipcRenderer.invoke('license-verify'),

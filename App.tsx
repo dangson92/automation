@@ -711,21 +711,39 @@ const App: React.FC = () => {
         console.log('📊 Số bài viết:', posts.length);
         console.log('📝 Sample post:', posts[0]);
 
-        // Lưu data vào localStorage để WP Poster đọc
-        // (Tránh giới hạn độ dài của URL scheme)
-        try {
-          localStorage.setItem('wpposter_import_data', JSON.stringify(data));
-          console.log('✅ Đã lưu data vào localStorage với key: wpposter_import_data');
-        } catch (e) {
-          console.error('❌ Lỗi lưu localStorage:', e);
+        // Lưu data (Electron: file temp, Web: localStorage)
+        if (mode === 'ELECTRON' && window.electronAPI) {
+          // Electron mode: Lưu vào file temp (không giới hạn kích thước)
+          try {
+            const result = await window.electronAPI.savePublishData(data);
+            if (result.success) {
+              console.log(`✅ Data đã được lưu vào file: ${result.filePath}`);
+
+              // Mở WP Poster với file path
+              window.location.href = `wpposter://import?file=${encodeURIComponent(result.filePath || '')}`;
+
+              alert(`✅ Đã gửi ${posts.length} bài viết tới WP Poster!\n\n📂 File: ${result.filePath}`);
+            } else {
+              throw new Error(result.error || 'Không thể lưu file');
+            }
+          } catch (e) {
+            console.error('❌ Lỗi lưu file:', e);
+            alert(`❌ Lỗi lưu data: ${e instanceof Error ? e.message : 'Unknown'}`);
+          }
+        } else {
+          // Web mode: Fallback localStorage (giới hạn ~5-10MB)
+          try {
+            localStorage.setItem('wpposter_import_data', JSON.stringify(data));
+            console.log('✅ Data đã lưu vào localStorage (key: wpposter_import_data)');
+
+            window.location.href = `wpposter://import`;
+
+            alert(`✅ Đã gửi ${posts.length} bài viết tới WP Poster!\n\nℹ️ Data lưu trong localStorage`);
+          } catch (e) {
+            console.error('❌ Lỗi localStorage (có thể quá giới hạn):', e);
+            alert(`❌ Data quá lớn! Vui lòng giảm số bài viết hoặc dùng Desktop App.`);
+          }
         }
-
-        // Mở app qua protocol (không truyền data qua URL)
-        const url = `wpposter://import`;
-        console.log('🚀 Mở URL scheme:', url);
-        window.location.href = url;
-
-        alert(`✅ Đã gửi ${posts.length} bài viết tới WP Poster!\n\nℹ️ Data đã được lưu vào localStorage với key: wpposter_import_data`);
       }
     } catch (error) {
       console.error('Lỗi khi đăng bài:', error);

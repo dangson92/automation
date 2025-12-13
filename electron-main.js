@@ -143,6 +143,30 @@ ipcMain.handle('queue-load', async () => {
   }
 });
 
+// Save publish data to temp file for WP Poster
+ipcMain.handle('save-publish-data', async (event, data) => {
+  try {
+    const userDataPath = app.getPath('userData');
+    const tempDir = path.join(userDataPath, 'temp');
+
+    // Create temp directory if not exists
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    const filePath = path.join(tempDir, 'wpposter_import.json');
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+
+    console.log('✅ Publish data saved to:', filePath);
+    console.log('📊 Data size:', JSON.stringify(data).length, 'bytes');
+
+    return { success: true, filePath };
+  } catch (error) {
+    console.error('❌ Failed to save publish data:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('settings-export', async (event, settings) => {
   try {
     const { filePath, canceled } = await dialog.showSaveDialog({
