@@ -267,6 +267,9 @@ const App: React.FC = () => {
   const [inputMode, setInputMode] = useState<'manual' | 'import'>('manual');
   const [importMappingCount, setImportMappingCount] = useState<number>(0);
 
+  // Toast notification
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
   // Get visible input variables based on input mode
   const getVisibleInputVariables = () => {
     if (inputMode === 'manual') {
@@ -704,77 +707,33 @@ const App: React.FC = () => {
         }
       } catch (error) {
         // Nếu không connect được, dùng URL scheme
-        console.log('Không kết nối được localhost, chuyển sang URL scheme...', error);
-
-        // Debug: Log data trước khi gửi
-        console.log('📦 Data gửi tới WP Poster:', data);
-        console.log('📊 Số bài viết:', posts.length);
-        console.log('📝 Sample post:', posts[0]);
-
-        // Lưu data (Electron: file temp, Web: localStorage)
         if (mode === 'ELECTRON' && window.electronAPI) {
-          // Electron mode: Lưu vào file temp (không giới hạn kích thước)
+          // Electron mode: Lưu vào file temp
           try {
             const result = await window.electronAPI.savePublishData(data);
             if (result.success) {
               const urlScheme = `wpposter://import?file=${encodeURIComponent(result.filePath || '')}`;
-
-              console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-              console.log('✅ DATA ĐÃ LƯU THÀNH CÔNG');
-              console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-              console.log(`📂 File path: ${result.filePath}`);
-              console.log(`🔗 URL Scheme: ${urlScheme}`);
-              console.log(`📊 Tổng số bài: ${posts.length}`);
-              console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-              console.log('📋 COPY THÔNG TIN NÀY GỬI CHO WP POSTER TEAM:');
-              console.log(JSON.stringify({
-                urlScheme,
-                filePath: result.filePath,
-                totalPosts: posts.length,
-                samplePost: posts[0],
-                dataStructure: {
-                  posts: '[Array of post objects]',
-                  postFormat: {
-                    Title: 'string',
-                    Content: 'string (HTML)',
-                    Tags: 'string (comma-separated)',
-                    Categories: 'string (comma-separated)',
-                    Excerpt: 'string',
-                    Status: 'draft'
-                  }
-                }
-              }, null, 2));
-              console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-              // Mở WP Poster với file path
               window.location.href = urlScheme;
-
-              alert(`✅ Đã gửi ${posts.length} bài viết tới WP Poster!\n\n📂 File: ${result.filePath}\n\n⚠️ Nếu WP Poster không nhận được data:\n1. Mở Console (F12)\n2. Copy thông tin debug\n3. Gửi cho WP Poster team`);
+              setToast({ message: `Đã gửi ${posts.length} bài viết tới WP Poster!`, type: 'success' });
             } else {
               throw new Error(result.error || 'Không thể lưu file');
             }
           } catch (e) {
-            console.error('❌ Lỗi lưu file:', e);
-            alert(`❌ Lỗi lưu data: ${e instanceof Error ? e.message : 'Unknown'}`);
+            setToast({ message: `Lỗi lưu data: ${e instanceof Error ? e.message : 'Unknown'}`, type: 'error' });
           }
         } else {
-          // Web mode: Fallback localStorage (giới hạn ~5-10MB)
+          // Web mode: Fallback localStorage
           try {
             localStorage.setItem('wpposter_import_data', JSON.stringify(data));
-            console.log('✅ Data đã lưu vào localStorage (key: wpposter_import_data)');
-
             window.location.href = `wpposter://import`;
-
-            alert(`✅ Đã gửi ${posts.length} bài viết tới WP Poster!\n\nℹ️ Data lưu trong localStorage`);
+            setToast({ message: `Đã gửi ${posts.length} bài viết tới WP Poster!`, type: 'success' });
           } catch (e) {
-            console.error('❌ Lỗi localStorage (có thể quá giới hạn):', e);
-            alert(`❌ Data quá lớn! Vui lòng giảm số bài viết hoặc dùng Desktop App.`);
+            setToast({ message: 'Data quá lớn! Vui lòng giảm số bài viết.', type: 'error' });
           }
         }
       }
     } catch (error) {
-      console.error('Lỗi khi đăng bài:', error);
-      alert(`❌ Đăng thất bại: ${error instanceof Error ? error.message : 'Lỗi không xác định'}`);
+      setToast({ message: `Đăng thất bại: ${error instanceof Error ? error.message : 'Lỗi không xác định'}`, type: 'error' });
     } finally {
       setIsPublishing(false);
     }
@@ -2012,6 +1971,14 @@ const App: React.FC = () => {
   const tableMinWidth = fixedColsWidth + (stepCount * stepColMinWidth);
 
   const selectedItem = queue.find(i => i.id === selectedItemId);
+
+  // Auto-hide toast after 4 seconds
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   return (
     <div className="flex h-screen w-full bg-slate-100 overflow-hidden text-slate-800 font-sans">
@@ -3548,6 +3515,24 @@ const App: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* --- TOAST NOTIFICATION --- */}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-[60] animate-in slide-in-from-bottom-5 duration-300 ${
+          toast.type === 'success' ? 'bg-green-600' : toast.type === 'error' ? 'bg-red-600' : 'bg-blue-600'
+        } text-white px-6 py-4 rounded-xl shadow-2xl flex items-center space-x-3 min-w-[300px] max-w-md`}>
+          {toast.type === 'success' && <CheckCircle2 className="w-6 h-6 flex-shrink-0" />}
+          {toast.type === 'error' && <AlertTriangle className="w-6 h-6 flex-shrink-0" />}
+          {toast.type === 'info' && <AlertTriangle className="w-6 h-6 flex-shrink-0" />}
+          <span className="flex-1 font-medium">{toast.message}</span>
+          <button
+            onClick={() => setToast(null)}
+            className="p-1 hover:bg-white/20 rounded-lg transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
     </div>
